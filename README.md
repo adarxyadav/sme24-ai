@@ -1,36 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SME24
 
-## Getting Started
+AI-powered EHS (environment, health & safety) consulting marketplace for the Swiss market.
 
-First, run the development server:
+A client enters their company name and a background pipeline does the rest: researches public disclosures, extracts safety KPIs, benchmarks them against industry peers, estimates the annual cost of incidents in CHF, and matches senior EHS experts — all delivered free in the client dashboard.
+
+The free report is the funnel; revenue comes from four fixed-price consulting packages — three sold via Stripe Checkout with Swiss MWST, one retainer via contact form. Tier definitions live in [context/product/packages.md](context/product/packages.md).
+
+Three user roles share the app — **clients**, **experts**, and **admins** — each with their own surface.
+
+## Stack
+
+- Next.js 16 (App Router) + React 19, TypeScript strict
+- Tailwind CSS 4
+- pnpm
+
+Planned, not wired yet: Supabase (Postgres, Storage, RLS), Trigger.dev (background pipeline, all AI calls), Stripe Checkout. See [AGENTS.md](AGENTS.md) for the target layout.
+
+## Run
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm dev        # http://localhost:3000
+pnpm build      # production build
+pnpm lint
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Deploy
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Not set up yet — this section fills in when the first deploy target lands.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Working on this repo
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Read [AGENTS.md](AGENTS.md) first — it defines the ticket-driven workflow, the `context/` doc system, and the code standards.
