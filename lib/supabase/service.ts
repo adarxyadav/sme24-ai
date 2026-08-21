@@ -10,7 +10,7 @@ import { supabaseSecretKey, supabaseUrl } from "@/lib/supabase/env";
 // No session, no cookies: persistSession/autoRefreshToken off keeps this client
 // from ever picking up a user's token and confusing the two authorities.
 export function createServiceClient() {
-  return createSupabaseClient(supabaseUrl, supabaseSecretKey, {
+  return createSupabaseClient(supabaseUrl(), supabaseSecretKey(), {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }

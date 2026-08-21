@@ -9,7 +9,7 @@ import { supabasePublishableKey, supabaseUrl } from "@/lib/supabase/env";
 // (library-docs.md, Supabase).
 export async function createClient() {
   const cookieStore = await cookies();
-  return createServerClient(supabaseUrl, supabasePublishableKey, {
+  return createServerClient(supabaseUrl(), supabasePublishableKey(), {
     cookies: {
       getAll() {
         return cookieStore.getAll();
