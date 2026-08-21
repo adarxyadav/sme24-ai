@@ -38,7 +38,20 @@ Project-specific rules per third-party library — the gotchas and conventions t
 ## Trigger.dev v4
 
 - All AI calls live in `trigger/` tasks (AGENTS.md rule); pipeline task semantics (chaining, retries, queues) are owned by `context/product/pipeline-rules.md`.
+- Project `sme24-ehs`, config in `trigger.config.ts` (`dirs: ["./trigger"]` — `init` defaults to `./src/trigger`, which this repo does not have, and scaffolds an example task using `any`; delete both).
+- **Region is per-run, not per-project.** Every project can reach every region; `region` is a `TriggerOptions` field and the project holds a *default* used when a call names none. That default is `eu-central-1` (Frankfurt, matching Supabase), **and** each trigger site passes `region: "eu-central-1"` explicitly — the dashboard default is invisible in the repo, and customer data stays in EU regions (`pipeline-rules.md`).
+- **Queues: declare on the task, reference when triggering.** `concurrencyLimit` exists only on the task definition; at the trigger site `queue` is a plain `string`. Naming a queue there that no task declares leaves runs stuck in `PENDING_VERSION`. Queue names live in `lib/runs/queues.ts` so a route can reference one without importing task code.
+- Per-user concurrency is `concurrencyKey` at the trigger site, which copies the queue per unique value — not a second queue and not a global limit.
+- Route handlers enqueue with `tasks.trigger<typeof someTask>("task-id", payload, opts)` and **`import type`** for the task. A value import evaluates the task module and pulls its dependencies (the Parallel client, the service-role client) into the route bundle; this builds without complaint, so nothing catches it for you.
+- `onFailure` fires once, after retries are exhausted — the only correct place to write a terminal `failed`. A `catch` inside `run()` fires on the first attempt and is then contradicted by a retry that succeeds.
+- The CLI's task table stays empty until a run arrives; an empty table is not proof the task failed to register. The `■ Error:` line wrapping Node's `--localstorage-file` warning is stderr noise, not a build failure.
+- `TRIGGER_SECRET_KEY` is per-environment (`tr_dev_…` locally). `npx trigger.dev@latest dev` must be running or a triggered run simply waits.
 
 ## Parallel Task API
 
 - Async only: create run → poll/webhook. Processor tiers and caching rules are owned by `context/product/pipeline-rules.md`. Receives only public company names — never customer data.
+- We poll, we do not use webhooks (`t-004-spec.md` D7). `GET /v1/tasks/runs/{id}/result?timeout=N` **long-polls** — it blocks server-side until the result is ready and returns 408 when the window closes — so the loop is a few blocking reads with no sleep between them, not a busy wait.
+- Plain `fetch` in `lib/parallel/`, not the `parallel-web` SDK: two endpoints, and the SDK's value here is the polling loop we write anyway to bound it against the task's `maxDuration`.
+- JSON output mode is `task_spec.output_schema = { type: "json", json_schema: {...} }`. Schema descriptions are read as instructions by the model — they are the difference between a disclosed figure and an invented one, so write them as such.
+- Provenance comes back as `output.basis[]`: per-field `{ field, citations[{url, title, excerpts[]}], reasoning, confidence }`. Stored verbatim alongside our parsed output so it is never lossily re-derived.
+- Every response is parsed with a Zod mirror of the JSON schema before anything is written — a provider-side shape change should surface as a task failure, not as malformed jsonb a later stage trips over.

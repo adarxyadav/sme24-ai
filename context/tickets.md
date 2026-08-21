@@ -14,13 +14,9 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-(empty — next up: T-004)
+(empty — next up: T-005)
 
 ## Next
-
-### T-004 — Stage 1 company research
-- What: Trigger.dev task — write client-KPI rows first, then cache-check by `cache_key` (copy `research` from the newest completed run under 30 days old), else call Parallel on ultra with the EHS output schema; uploaded PDF overrides any field it covers; `no_data` terminal.
-- Check: a run for a known Swiss discloser stores `research` jsonb carrying findings, `basis[]` citations, per-field confidence, and `sector`; a second run for the same company reuses the cached research and makes no Parallel call, proven from `agent_logs`; a forced task failure sets `failed` plus the `error` column plus an `agent_logs` row while the UI shows only the generic notice; a company with no web data and no upload ends `no_data`.
 
 ### T-005 — Stage 2 KPI extraction
 - What: Trigger.dev task normalizing stage-1 research into canonical `kpis` rows via `Output.object` + Zod, written as one atomic swap that touches only non-client rows. The run reaches `completed` after this stage until stages 3–5 land.
@@ -40,6 +36,9 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 - Expert and admin surfaces.
 - Post-report collection surface for the leading indicators and the client-only lagging four.
 - Base-processor escalation paths.
+- Uploaded report override (stage 1 step 4, scoped out of T-004 — `t-004-spec.md` D10): private Storage bucket, upload control on the search form, `uploaded_report_path` validated as owned by the caller in the trigger route, and a Claude PDF read that overrides the web result for any field it covers. *Check to be written by the repo owner before this moves up.*
+- Stalled in-progress runs: T-010 gave `queued` an owner, but `researching` (and every later working status) still has none. `onCancel` catches a cancelled or crashed task; a worker that dies without cancelling leaves the run in-progress forever, which is how `91c61651` sat at `researching` for two hours on 2026-08-21. The `queued` sweeper's approach does not transfer — a run legitimately occupies `researching` for up to the task's 30-minute `maxDuration`, and the row alone cannot say whether the task is still alive, so this needs `runs.retrieve` against the Trigger.dev API rather than an age threshold. *Check to be written by the repo owner before this moves up.*
+- Cancelled-run terminal status: `onCancel` currently writes `failed` because the state machine has no `cancelled`. Decide whether a distinct status is worth a schema change.
 - Marketing site beyond the search form.
 - Deploy target.
 - Auth before launch: Resend verified EU domain + `noreply@<domain>` sender (SMTP itself is already live on the dev sender), Turnstile on `/login`, production redirect-URL allowlist, custom auth domain decision, DE/FR email templates, account deletion + email change (`auth.md` Not in v1).
