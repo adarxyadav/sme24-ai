@@ -17,6 +17,9 @@ export const LOG_MESSAGES = {
   noData: "no data",
   failed: "stage failed",
   cancelled: "run cancelled",
+  alreadyClaimed: "run already claimed",
+  sweptQueued: "queued run swept",
+  enqueueFailed: "enqueue failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

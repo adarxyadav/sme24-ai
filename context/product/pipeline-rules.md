@@ -36,6 +36,7 @@ Pipeline-specific:
 
 - An escalation re-run (see Escalation) keeps the run in its current status — the machine only moves forward.
 - `failed` is set by the failing task's final-failure hook (retries exhausted): write status + the `error` column + an `agent_logs` row. The UI shows a generic delayed notice, never the error.
+- `queued` has an owner: a scheduled sweeper (`trigger/sweep-queued-runs.ts`) re-triggers runs still `queued` past a staleness threshold, because `onFailure`/`onCancel` both require the task to have started and so cover nothing that never reached a worker. A task claims its run with a conditional `queued -> researching` update, which makes the status column — not Trigger.dev's idempotency store — the proof that work already started, so a redundant re-trigger is a no-op. A run swept three times without being claimed is set `failed` through the same terminal shape as above.
 - `no_data` is set only by stage 1.
 
 ## Stages
@@ -112,7 +113,7 @@ Base → ultra, once only, agent-logged every time; the run's status does not mo
 
 ## Trigger route (`app/api/`)
 
-POST validates: authenticated, input shape (optional `kpis[]` — canonical metrics, deduped by metric; optional uploaded-report Storage path owned by the caller), ownership → inserts an `analysis_runs` row (`queued`) → `tasks.trigger()` stage 1 → returns `runId`.
+POST validates: authenticated, input shape (optional `kpis[]` — canonical metrics, deduped by metric; optional uploaded-report Storage path owned by the caller), ownership → inserts an `analysis_runs` row (`queued`) → `tasks.trigger()` stage 1 → returns `runId`. The enqueue is best-effort: it is attempted after the write, and a failure is logged to `agent_logs` and left to the sweeper rather than failing the request — the committed row is what means "work exists", so a 201 with a usable `runId` is the honest answer either way.
 
 ## Decision log
 

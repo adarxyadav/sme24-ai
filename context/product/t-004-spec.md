@@ -99,6 +99,14 @@ recoverable state, not a lost row. It does not roll back the run — the client'
 KPI figures are in it, and deleting them to report a queue error is the worse
 trade.
 
+> **Superseded by T-010 (2026-08-21).** The 500 was wrong: `queued` was called
+> "recoverable" but nothing recovered it. `onFailure` and `onCancel` both need
+> the task to have started, so a run that never reached a worker sat `queued`
+> forever, and the 500 invited a resubmit that created a second run. The route
+> now returns 201 with the `runId` whether or not the enqueue succeeded, logs a
+> failed enqueue to `agent_logs`, and a scheduled sweeper re-triggers what it
+> missed. See `pipeline-rules.md`, Run state machine.
+
 Rejected: enqueuing from inside the Postgres function (Trigger.dev has no
 Postgres surface); the trigger route calling AI itself (`pipeline-rules.md`
 forbids it — it "validates input + ownership, then enqueues").

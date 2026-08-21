@@ -71,11 +71,42 @@ export const companyResearchTask = task({
     if (runError) throw new Error(`run lookup failed: ${runError.message}`);
     if (!run) throw new Error(`run ${runId} not found`);
 
+    // Claiming the run, not just advancing it. The conditional update is the
+    // whole safety story for T-010's sweeper: `queued -> researching` succeeds
+    // for exactly one caller, so a run triggered twice (route enqueue plus a
+    // sweep that raced it) has one winner and the loser exits here. The guard
+    // is the database's, not Trigger.dev's idempotency store — that store
+    // clears a failed run's key and expires at 30 days, so it cannot be the
+    // authority on whether our work already started.
+    //
     // The state machine only moves forward: an escalation re-run keeps the run
-    // in its current status (pipeline-rules.md), so this advances queued runs
-    // only and never walks a later status backwards.
+    // in its current status (pipeline-rules.md), so a run already past `queued`
+    // is never walked backwards, and an escalation re-run is not a duplicate.
     if (run.status === "queued") {
-      await service.from("analysis_runs").update({ status: "researching" }).eq("id", runId);
+      const { data: claimed, error: claimError } = await service
+        .from("analysis_runs")
+        .update({ status: "researching" })
+        .eq("id", runId)
+        .eq("status", "queued")
+        .select("id")
+        .maybeSingle<{ id: string }>();
+
+      if (claimError) throw new Error(`run claim failed: ${claimError.message}`);
+
+      if (!claimed) {
+        // Another trigger for this same run got there first. Returning rather
+        // than throwing: this is the guard working, not a failure, and throwing
+        // would spend retries and end at onFailure marking a healthy run failed.
+        await agentLog(service, {
+          runId,
+          stage: STAGE,
+          level: "warn",
+          message: LOG_MESSAGES.alreadyClaimed,
+          payload: {},
+        });
+        logger.log("stage 1 skipped, run already claimed", { runId });
+        return { runId, skipped: true as const };
+      }
     }
 
     // Step 1 — client KPIs. Already written by the trigger route inside

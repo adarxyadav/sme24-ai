@@ -5,6 +5,7 @@ import { CANONICAL_METRICS, type CanonicalMetric } from "@/lib/runs/metrics";
 import { cacheKey } from "@/lib/runs/cache-key";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { agentLog, LOG_MESSAGES } from "@/lib/runs/agent-log";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 // Type-only, and deliberately so: it types the payload without evaluating the
 // task module, which would pull the Parallel client and the service-role client
@@ -63,6 +64,10 @@ function fail(message: string, status: number) {
 
 const INVALID = "Please check the form and try again.";
 
+// The stage the enqueue belongs to, so a failed handoff logs against the same
+// stage the task itself would have.
+const STAGE = "research";
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: claimsData } = await supabase.auth.getClaims();
@@ -108,10 +113,21 @@ export async function POST(request: NextRequest) {
   }
 
   // Enqueued after the write, never before: a task must not start against a run
-  // row that does not exist yet. If this throws, the run stays `queued` — a
-  // visible, recoverable state. It is deliberately not rolled back, because the
-  // client's own KPI figures are in that row (t-004-spec.md D2).
+  // row that does not exist yet.
+  //
+  // Best-effort, and deliberately so (T-010, superseding t-004-spec.md D2). The
+  // committed row is the source of truth for "work exists" — `queued` means no
+  // task has claimed it yet — so a failed enqueue is a delay, not a failed
+  // request. Returning 500 here would report a run that genuinely exists as
+  // never started, and the form's resubmit would then create a second one. The
+  // sweeper re-triggers whatever this misses.
   try {
+    // A testing seam, alongside FORCE_STAGE1_FAILURE — it proves the branch
+    // below without needing Trigger.dev to be genuinely unreachable (T-010).
+    if (process.env.FORCE_ENQUEUE_FAILURE) {
+      throw new Error("Forced enqueue failure (FORCE_ENQUEUE_FAILURE)");
+    }
+
     await tasks.trigger<typeof companyResearchTask>(
       "company-research",
       { runId },
@@ -129,8 +145,18 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (triggerError) {
-    console.error("stage 1 enqueue failed", runId, triggerError);
-    return fail("We could not start your search. Please try again.", 500);
+    // The agent_logs row is what makes this recoverable rather than merely
+    // logged: the sweeper counts these to decide when a run has failed to
+    // enqueue often enough to be terminated (T-010).
+    const cause =
+      triggerError instanceof Error ? triggerError.message : String(triggerError);
+    await agentLog(service, {
+      runId,
+      stage: STAGE,
+      level: "warn",
+      message: LOG_MESSAGES.enqueueFailed,
+      payload: { source: "route", cause: cause.slice(0, 500) },
+    });
   }
 
   return NextResponse.json({ runId }, { status: 201 });

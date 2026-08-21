@@ -14,12 +14,19 @@ Built so far — **stage 1 only** (`trigger/company-research.ts`):
 
 ```
 POST /api/runs ──> create_analysis_run()      run row + client kpis, one transaction
-               └─> tasks.trigger("company-research", { runId })
+               └─> tasks.trigger("company-research", { runId })   best-effort
                      queue "company-research" (concurrencyLimit 1)
                      concurrencyKey = userId          -> one run at a time per user
+                     on throw: agent_logs row, still 201 — the sweeper recovers it
+
+sweep-queued-runs task (cron */5, UTC)
+  selects status='queued' older than 5 min   -> re-triggers, same queue + concurrencyKey
+  3 sweeps without a claim                   -> failed + error + agent_logs row
 
 company-research task
-  queued -> researching        (guarded: only from queued; escalation never rewinds)
+  queued -> researching        claim: conditional update, only from queued.
+                               The winner proceeds, a redundant trigger exits.
+                               Escalation never rewinds a later status.
   1. read client kpis          origin='client', already written by the route — never re-written
   2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
                                ultra ignores a base donor; a hit copies `research` only
@@ -36,15 +43,17 @@ company-research task
 
 The payload is `{ runId }` alone — company name, domain, processor and upload path are read from the row, so a retry or escalation re-run always sees current values. `error` is internal-facing and no read path selects it.
 
+`queued` is the one status with no task inside it, so it gets an external owner: `onFailure` and `onCancel` only fire once a task has started, leaving a run that never reached a worker (failed enqueue, `PENDING_VERSION` after a deploy skew, a worker dying pre-attempt) stuck forever. The sweeper closes that. The database is the authority for whether work already started — the conditional `queued -> researching` claim — rather than Trigger.dev's idempotency store, which clears a failed run's key and expires at 30 days.
+
 ## Data
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
-- `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup.
+- `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup. Partial index on `(created_at)` for `queued` runs serves the sweeper's scan.
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
