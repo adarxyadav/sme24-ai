@@ -43,15 +43,29 @@ export async function agentLog(
     payload?: Record<string, unknown>;
   },
 ): Promise<void> {
-  const { error } = await service.from("agent_logs").insert({
-    run_id: runId,
-    stage,
-    level,
-    message,
-    payload: payload ?? null,
-  });
+  // try/catch as well as the returned error: a Supabase query error comes back
+  // in `error`, but the request itself can still throw (network down, DNS,
+  // aborted fetch), and that throw would escape into the caller. In the trigger
+  // route that would surface as a 500 for a run that was committed and is
+  // waiting for the sweeper — reviving the duplicate-run problem T-010 removed.
+  try {
+    const { error } = await service.from("agent_logs").insert({
+      run_id: runId,
+      stage,
+      level,
+      message,
+      payload: payload ?? null,
+    });
 
-  if (error) {
-    console.error("agent_logs insert failed", runId, message, error.message);
+    if (error) {
+      console.error("agent_logs insert failed", runId, message, error.message);
+    }
+  } catch (cause) {
+    console.error(
+      "agent_logs insert threw",
+      runId,
+      message,
+      cause instanceof Error ? cause.message : String(cause),
+    );
   }
 }

@@ -74,91 +74,102 @@ export const sweepQueuedRunsTask = schedules.task({
     let terminated = 0;
 
     for (const run of runs) {
-      // Counted before this sweep is recorded, so the run is terminated on the
-      // sweep *after* its MAX_SWEEPS-th — it gets that many real re-trigger
-      // attempts, not one fewer.
-      const { count, error: countError } = await service
-        .from("agent_logs")
-        .select("id", { count: "exact", head: true })
-        .eq("run_id", run.id)
-        .eq("message", LOG_MESSAGES.sweptQueued);
+      // One run must never abandon the batch. The returned-error paths below
+      // already `continue`; this catch extends the same promise to a thrown
+      // request (network, DNS, aborted fetch), which would otherwise fail the
+      // whole sweep and leave every later run unswept until the next cron tick.
+      try {
+        // Counted before this sweep is recorded, so the run is terminated on the
+        // sweep *after* its MAX_SWEEPS-th — it gets that many real re-trigger
+        // attempts, not one fewer.
+        const { count, error: countError } = await service
+          .from("agent_logs")
+          .select("id", { count: "exact", head: true })
+          .eq("run_id", run.id)
+          .eq("message", LOG_MESSAGES.sweptQueued);
 
-      if (countError) {
-        // One run's bookkeeping failing must not abandon the rest of the batch.
-        logger.error("sweep count failed", { runId: run.id, message: countError.message });
-        continue;
-      }
-
-      const priorSweeps = count ?? 0;
-
-      if (priorSweeps >= MAX_SWEEPS) {
-        // The same terminal shape as the task's own final-failure hook
-        // (pipeline-rules.md: status + the error column + one agent_logs row),
-        // guarded on `queued` so a run that started between the select and here
-        // is left alone.
-        const { error: failError } = await service
-          .from("analysis_runs")
-          .update({
-            status: "failed",
-            error: `Run never started: ${priorSweeps} sweeps did not reach a worker`,
-            completed_at: new Date().toISOString(),
-          })
-          .eq("id", run.id)
-          .eq("status", "queued");
-
-        if (failError) {
-          logger.error("sweep terminate failed", { runId: run.id, message: failError.message });
+        if (countError) {
+          // One run's bookkeeping failing must not abandon the rest of the batch.
+          logger.error("sweep count failed", { runId: run.id, message: countError.message });
           continue;
         }
 
-        await agentLog(service, {
-          runId: run.id,
-          stage: STAGE,
-          level: "error",
-          message: LOG_MESSAGES.failed,
-          payload: { reason: "never_enqueued", sweeps: priorSweeps },
-        });
+        const priorSweeps = count ?? 0;
 
-        terminated += 1;
-        continue;
-      }
+        if (priorSweeps >= MAX_SWEEPS) {
+          // The same terminal shape as the task's own final-failure hook
+          // (pipeline-rules.md: status + the error column + one agent_logs row),
+          // guarded on `queued` so a run that started between the select and here
+          // is left alone.
+          const { error: failError } = await service
+            .from("analysis_runs")
+            .update({
+              status: "failed",
+              error: `Run never started: ${priorSweeps} sweeps did not reach a worker`,
+              completed_at: new Date().toISOString(),
+            })
+            .eq("id", run.id)
+            .eq("status", "queued");
 
-      try {
-        await tasks.trigger<typeof companyResearchTask>(
-          "company-research",
-          { runId: run.id },
-          {
-            // The same queue and per-user key the route uses: a swept run must
-            // not bypass the concurrency-1 throttle its owner is subject to
-            // (pipeline-rules.md, Quota).
-            queue: COMPANY_RESEARCH_QUEUE,
-            concurrencyKey: run.user_id,
-            region: "eu-central-1",
-          },
-        );
-      } catch (triggerError) {
-        const cause =
-          triggerError instanceof Error ? triggerError.message : String(triggerError);
+          if (failError) {
+            logger.error("sweep terminate failed", { runId: run.id, message: failError.message });
+            continue;
+          }
+
+          await agentLog(service, {
+            runId: run.id,
+            stage: STAGE,
+            level: "error",
+            message: LOG_MESSAGES.failed,
+            payload: { reason: "never_enqueued", sweeps: priorSweeps },
+          });
+
+          terminated += 1;
+          continue;
+        }
+
+        try {
+          await tasks.trigger<typeof companyResearchTask>(
+            "company-research",
+            { runId: run.id },
+            {
+              // The same queue and per-user key the route uses: a swept run must
+              // not bypass the concurrency-1 throttle its owner is subject to
+              // (pipeline-rules.md, Quota).
+              queue: COMPANY_RESEARCH_QUEUE,
+              concurrencyKey: run.user_id,
+              region: "eu-central-1",
+            },
+          );
+        } catch (triggerError) {
+          const cause =
+            triggerError instanceof Error ? triggerError.message : String(triggerError);
+          await agentLog(service, {
+            runId: run.id,
+            stage: STAGE,
+            level: "warn",
+            message: LOG_MESSAGES.enqueueFailed,
+            payload: { source: "sweeper", cause: cause.slice(0, 500) },
+          });
+        }
+
+        // Written whether or not the trigger above succeeded: the count is of
+        // sweeps spent on this run, which is what bounds it.
         await agentLog(service, {
           runId: run.id,
           stage: STAGE,
           level: "warn",
-          message: LOG_MESSAGES.enqueueFailed,
-          payload: { source: "sweeper", cause: cause.slice(0, 500) },
+          message: LOG_MESSAGES.sweptQueued,
+          payload: { sweep: priorSweeps + 1, queued_since: run.created_at },
+        });
+
+        swept += 1;
+      } catch (cause) {
+        logger.error("sweep item failed", {
+          runId: run.id,
+          message: cause instanceof Error ? cause.message : String(cause),
         });
       }
-
-      // Written whether or not the trigger above succeeded: the count is of
-      // sweeps spent on this run, which is what bounds it.
-      await agentLog(service, {
-        runId: run.id,
-        stage: STAGE,
-        level: "warn",
-        message: LOG_MESSAGES.sweptQueued,
-        payload: { sweep: priorSweeps + 1, queued_since: run.created_at },
-      });
-
-      swept += 1;
     }
 
     logger.log("queued sweep complete", { found: runs.length, swept, terminated });
