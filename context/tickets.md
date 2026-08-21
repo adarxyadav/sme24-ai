@@ -37,6 +37,7 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 - Post-report collection surface for the leading indicators and the client-only lagging four.
 - Base-processor escalation paths.
 - Uploaded report override (stage 1 step 4, scoped out of T-004 — `t-004-spec.md` D10): private Storage bucket, upload control on the search form, `uploaded_report_path` validated as owned by the caller in the trigger route, and a Claude PDF read that overrides the web result for any field it covers. *Check to be written by the repo owner before this moves up.*
+- Stalled in-progress runs: T-010 gave `queued` an owner, but `researching` (and every later working status) still has none. `onCancel` catches a cancelled or crashed task; a worker that dies without cancelling leaves the run in-progress forever, which is how `91c61651` sat at `researching` for two hours on 2026-08-21. The `queued` sweeper's approach does not transfer — a run legitimately occupies `researching` for up to the task's 30-minute `maxDuration`, and the row alone cannot say whether the task is still alive, so this needs `runs.retrieve` against the Trigger.dev API rather than an age threshold. *Check to be written by the repo owner before this moves up.*
 - Cancelled-run terminal status: `onCancel` currently writes `failed` because the state machine has no `cancelled`. Decide whether a distinct status is worth a schema change.
 - Marketing site beyond the search form.
 - Deploy target.
