@@ -21,12 +21,16 @@ POST /api/runs ──> create_analysis_run()      run row + client kpis, one tra
 
 sweep-queued-runs task (cron */5, UTC)
   selects status='queued' older than 5 min   -> re-triggers, same queue + concurrencyKey
-  3 sweeps without a claim                   -> failed + error + agent_logs row
+  3 recorded enqueue failures                -> failed + error + agent_logs row
+                                               (failures, not sweeps: a run waiting
+                                                behind concurrency-1 is healthy)
 
 company-research task
-  queued -> researching        claim: conditional update, only from queued.
-                               The winner proceeds, a redundant trigger exits.
-                               Escalation never rewinds a later status.
+  queued -> researching        claim: conditional update, attempted for every
+                               `reason: start` trigger regardless of the status
+                               read. The winner proceeds, a redundant trigger
+                               exits without calling Parallel. An escalation
+                               re-run is exempt and never rewinds a status.
   1. read client kpis          origin='client', already written by the route — never re-written
   2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
                                ultra ignores a base donor; a hit copies `research` only
