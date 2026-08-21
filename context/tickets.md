@@ -14,13 +14,9 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-(empty — next up: T-003)
+(empty — next up: T-004)
 
 ## Next
-
-### T-003 — Search form + trigger route
-- What: Search form (company name, optional domain, the 7 optional KPI fields) posting to a route handler that validates auth, input shape, and ownership, inserts a `queued` `analysis_runs` row with its normalized `cache_key`, and returns `runId`. No pipeline call yet.
-- Check: unauthenticated POST → 401; malformed body or a duplicate metric → 400 with a generic message; valid POST → exactly one `analysis_runs` row (`queued`, normalized `cache_key`) and a returned `runId`; the KPI fields validate against the canonical list in `kpi-contract.md`; submitting lands on the run's dashboard page showing the queued state.
 
 ### T-004 — Stage 1 company research
 - What: Trigger.dev task — write client-KPI rows first, then cache-check by `cache_key` (copy `research` from the newest completed run under 30 days old), else call Parallel on ultra with the EHS output schema; uploaded PDF overrides any field it covers; `no_data` terminal.
