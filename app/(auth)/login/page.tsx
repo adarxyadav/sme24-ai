@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LoginCard } from "@/components/portal/LoginCard";
 import { safeNext } from "@/lib/auth/safe-next";
+import { first } from "@/lib/search-params";
 
 export const metadata: Metadata = { title: "Sign in — SME24" };
 
@@ -10,10 +11,6 @@ const errorCopy: Record<string, string> = {
   oauth_failed:
     "Google sign-in didn't complete. Try again, or use an email link instead.",
 };
-
-function first(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const params = await searchParams;

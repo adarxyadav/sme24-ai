@@ -48,8 +48,9 @@ create trigger profiles_set_updated_at
   for each row execute function public.set_updated_at();
 
 -- Lock ------------------------------------------------------------------------
--- New tables are not auto-exposed to the Data API roles, so grants are explicit.
--- authenticated: select own row only. No insert/delete. No update either: every
+-- pg_default_acl grants every privilege to anon/authenticated on new tables in
+-- public, so the lock starts by revoking all of it and grants back only what is
+-- needed. authenticated: select own row only. No insert/delete. No update either: every
 -- current column is privileged or system-managed, so the "non-privileged
 -- columns" column grant from auth.md is empty today — add a column grant plus an
 -- update policy when the first user-editable column lands.

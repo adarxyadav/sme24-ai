@@ -20,9 +20,13 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `SiteHeader` (components/marketing/SiteHeader.tsx) — top bar with brand link (ShieldCheck + "SME24") and a primary `<nav>` holding `AuthNav`; no props.
 - `SiteFooter` (components/marketing/SiteFooter.tsx) — copyright + tagline; no props.
 - `SkipLink` (components/a11y/SkipLink.tsx) — visually hidden "Skip to content" link to `#main`, visible on focus.
+- `SearchForm` (components/portal/SearchForm.tsx, client) — the run intake: company name (required), optional website, reporting period, and the canonical 7 KPI fields. POSTs JSON to `/api/runs` and navigates to the returned run. Blank KPI fields are omitted from `kpis[]`, never sent as empty strings. No props.
+- `RunStatusCard` (components/dashboard/RunStatusCard.tsx, server) — a run's company name, domain and current state; `run` (from `lib/portal/runs`). Renders the queued state only until T-006 adds the rest.
 
 ## Pages of note
 
 - `/login` (app/(auth)/login/) — `LoginCard`, centered by `app/(auth)/layout.tsx`; reads `next` and `error` from the query string.
 - `/auth/confirm` (app/(auth)/auth/confirm/) — `MagicLinkConfirm`, same centered layout; noindex. Missing token → `/login?error=link_expired`.
+- `/` (app/page.tsx) — hero plus `SearchForm` for a signed-in visitor, or a sign-in link when signed out (the trigger route requires a session).
+- `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns; another user's run is not-found. noindex.
 - `/design` (app/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.

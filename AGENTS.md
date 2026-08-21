@@ -59,6 +59,16 @@ Reference: `context/product/auth.md` (the auth contract), `context/product/kpi-c
 - Naming/layout. Folders kebab-case, components PascalCase (one per file), utilities camelCase. `components/ui/` = app-owned shadcn primitives; `components/{marketing,portal,dashboard,admin,expert,a11y}/` by surface; `lib/` shared infra; `trigger/` background tasks (all AI calls); `supabase/migrations/` schema DDL + RLS (source of truth for data shape). Directories not present yet are target state — create each when its first file lands.
 - Data. Metadata in Postgres; binary artifacts in Supabase Storage with the path written to the owning row; protected files served via signed URLs only.
 
+## Agent skills
+
+### Issue tracker
+
+`context/tickets.md` is the only queue — no GitHub Issues, no `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` plus the `context/` tree. No ADR directory. See `docs/agents/domain.md`.
+
 ## Before handoff
 
 - `npx tsc --noEmit`, `pnpm lint`, `pnpm build` — all green.

@@ -25,7 +25,7 @@ Inherited from AGENTS.md (the owner — not restated here): AI only in `trigger/
 Pipeline-specific:
 
 - The trigger route validates input + ownership, then enqueues — it never calls AI.
-- RLS is the access boundary: reads RLS-scoped; service-role writes only in `trigger/` and `app/api/webhooks/`.
+- RLS is the access boundary: reads RLS-scoped; service-role writes only in `trigger/`, `app/api/webhooks/`, and the trigger route, which authenticates the session and derives `user_id` from it before writing (`library-docs.md`, Supabase).
 - Customer data + artifacts stay in EU regions. Parallel receives only a public company name; uploaded reports never leave Supabase.
 - Company research runs the **ultra** Parallel processor; `processor: 'base'` only by explicit override.
 - Never present a guessed number as fact — every KPI stores source + confidence. A client overrides any value by re-running the search with client-supplied KPIs (client rows always win).
@@ -98,7 +98,7 @@ Per-user Trigger.dev queue with concurrency 1 → one run at a time per user. Th
 ## Caching
 
 - **Cached:** stage-1 research only (the paid Parallel call). Stages 3–5 always regenerate; peer research is never cached.
-- **Key:** `cache_key` = normalized `company_domain` if present, else normalized `company_name`. Normalize = trim, lowercase, collapse inner whitespace; domains additionally lose scheme and `www.`.
+- **Key:** `cache_key` = normalized `company_domain` if present, else normalized `company_name`. One implementation owns the rule — `lib/runs/cache-key.ts` — so the trigger route and stage 1 cannot drift apart. Normalize, in order: NFC-normalize, then trim, lowercase, collapse inner whitespace to single spaces. A domain additionally loses its scheme, a leading `www.`, any path, query or fragment, any port, and one trailing dot; it is parsed with `URL`, and a domain that will not parse falls back to the name branch. NFC comes first because the same company typed on macOS and on Windows otherwise yields two keys and silently misses cache.
 - **Mechanics:** no cache table — a hit copies the `research` jsonb from the newest completed run with the same `cache_key` no older than 30 days, then stage 2 runs normally on the copy (so the current run's client-KPI merge still applies). Shared across all clients: one company = one paid Parallel run per window.
 - **Tier rule:** an ultra run ignores cached *base* research and refreshes the cache with its fresh result; cached ultra research is reused as-is.
 
