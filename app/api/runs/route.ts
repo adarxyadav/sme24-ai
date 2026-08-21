@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
 
     await tasks.trigger<typeof companyResearchTask>(
       "company-research",
-      { runId },
+      { runId, reason: "start" as const },
       {
         // The queue is declared on the task with its concurrencyLimit of 1;
         // concurrencyKey splits it into an independent sub-queue per user, so a

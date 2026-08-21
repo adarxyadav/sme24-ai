@@ -31,12 +31,20 @@ const STAGE = "research";
 // claim guard makes the loser a no-op.
 const STALE_AFTER_MINUTES = 5;
 
-// After this many recorded sweeps a run is terminated rather than swept
+// After this many *failed* enqueues a run is terminated rather than swept
 // forever, so a permanently unenqueueable run cannot become a new quiet stuck
 // state. Counted from agent_logs rather than a new column: the rows are already
-// written, already indexed by (run_id, created_at), and carry why each sweep
+// written, already indexed by (run_id, created_at), and say why each one
 // happened.
-const MAX_SWEEPS = 3;
+//
+// It counts `enqueueFailed`, never `sweptQueued`. A run waiting behind its
+// owner's concurrency-1 queue is re-triggered *successfully* on every sweep and
+// simply waits its turn — pipeline-rules.md Quota calls that a supported state,
+// and a second concurrent search can legitimately sit there for the length of a
+// full ultra run, far longer than a few sweep intervals. Counting sweeps rather
+// than failures would mark that healthy work `failed` while the task ahead of
+// it was still running.
+const MAX_ENQUEUE_FAILURES = 3;
 
 // One page is far more than a healthy system produces in five minutes; a
 // backlog above it is drained by subsequent sweeps rather than in one run.
@@ -79,14 +87,14 @@ export const sweepQueuedRunsTask = schedules.task({
       // request (network, DNS, aborted fetch), which would otherwise fail the
       // whole sweep and leave every later run unswept until the next cron tick.
       try {
-        // Counted before this sweep is recorded, so the run is terminated on the
-        // sweep *after* its MAX_SWEEPS-th — it gets that many real re-trigger
-        // attempts, not one fewer.
+        // Counted before this sweep records its own outcome, so the run is
+        // terminated on the sweep *after* its MAX_ENQUEUE_FAILURES-th — it gets
+        // that many real re-trigger attempts, not one fewer.
         const { count, error: countError } = await service
           .from("agent_logs")
           .select("id", { count: "exact", head: true })
           .eq("run_id", run.id)
-          .eq("message", LOG_MESSAGES.sweptQueued);
+          .eq("message", LOG_MESSAGES.enqueueFailed);
 
         if (countError) {
           // One run's bookkeeping failing must not abandon the rest of the batch.
@@ -94,9 +102,9 @@ export const sweepQueuedRunsTask = schedules.task({
           continue;
         }
 
-        const priorSweeps = count ?? 0;
+        const priorFailures = count ?? 0;
 
-        if (priorSweeps >= MAX_SWEEPS) {
+        if (priorFailures >= MAX_ENQUEUE_FAILURES) {
           // The same terminal shape as the task's own final-failure hook
           // (pipeline-rules.md: status + the error column + one agent_logs row),
           // guarded on `queued` so a run that started between the select and here
@@ -105,7 +113,7 @@ export const sweepQueuedRunsTask = schedules.task({
             .from("analysis_runs")
             .update({
               status: "failed",
-              error: `Run never started: ${priorSweeps} sweeps did not reach a worker`,
+              error: `Run never started: ${priorFailures} enqueue attempts failed`,
               completed_at: new Date().toISOString(),
             })
             .eq("id", run.id)
@@ -121,7 +129,7 @@ export const sweepQueuedRunsTask = schedules.task({
             stage: STAGE,
             level: "error",
             message: LOG_MESSAGES.failed,
-            payload: { reason: "never_enqueued", sweeps: priorSweeps },
+            payload: { reason: "never_enqueued", enqueue_failures: priorFailures },
           });
 
           terminated += 1;
@@ -131,7 +139,9 @@ export const sweepQueuedRunsTask = schedules.task({
         try {
           await tasks.trigger<typeof companyResearchTask>(
             "company-research",
-            { runId: run.id },
+            // `start`, not an escalation: this is the first attempt at the work,
+            // so it must win the claim or exit as a duplicate.
+            { runId: run.id, reason: "start" as const },
             {
               // The same queue and per-user key the route uses: a swept run must
               // not bypass the concurrency-1 throttle its owner is subject to
@@ -160,7 +170,7 @@ export const sweepQueuedRunsTask = schedules.task({
           stage: STAGE,
           level: "warn",
           message: LOG_MESSAGES.sweptQueued,
-          payload: { sweep: priorSweeps + 1, queued_since: run.created_at },
+          payload: { enqueue_failures: priorFailures, queued_since: run.created_at },
         });
 
         swept += 1;
