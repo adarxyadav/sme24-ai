@@ -1,13 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { CANONICAL_METRICS, type CanonicalMetric } from "@/lib/runs/metrics";
 import { cacheKey } from "@/lib/runs/cache-key";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
+// Type-only, and deliberately so: it types the payload without evaluating the
+// task module, which would pull the Parallel client and the service-role client
+// into this route. The queue name is a value, so it lives in lib/ instead.
+import type { companyResearchTask } from "@/trigger/company-research";
 
 // The trigger route (pipeline-rules.md, "Trigger route"). Order is fixed:
-// authenticate, validate shape, compute cache_key, write, return runId. It
-// never calls AI, and T-003 stops before enqueuing stage 1.
+// authenticate, validate shape, compute cache_key, write, enqueue, return
+// runId. It never calls AI itself — it hands off to the stage-1 task.
 
 // No z.coerce anywhere: coercion turns "" into 0, which would record zero
 // fatalities as a client-supplied fact at confidence 'high' — a fabricated
@@ -98,6 +104,32 @@ export async function POST(request: NextRequest) {
 
   if (error || typeof runId !== "string") {
     console.error("create_analysis_run failed", error?.message);
+    return fail("We could not start your search. Please try again.", 500);
+  }
+
+  // Enqueued after the write, never before: a task must not start against a run
+  // row that does not exist yet. If this throws, the run stays `queued` — a
+  // visible, recoverable state. It is deliberately not rolled back, because the
+  // client's own KPI figures are in that row (t-004-spec.md D2).
+  try {
+    await tasks.trigger<typeof companyResearchTask>(
+      "company-research",
+      { runId },
+      {
+        // The queue is declared on the task with its concurrencyLimit of 1;
+        // concurrencyKey splits it into an independent sub-queue per user, so a
+        // user's second search waits rather than running alongside the first
+        // (pipeline-rules.md, Quota).
+        queue: COMPANY_RESEARCH_QUEUE,
+        concurrencyKey: userId,
+        // Explicit, though the project default is the same: customer data stays
+        // in EU regions, and a dashboard default is invisible in the repo
+        // (t-004-spec.md D1).
+        region: "eu-central-1",
+      },
+    );
+  } catch (triggerError) {
+    console.error("stage 1 enqueue failed", runId, triggerError);
     return fail("We could not start your search. Please try again.", 500);
   }
 

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Trigger.dev's generated build output — gitignored, and ESLint 9's flat
+    // config does not read .gitignore.
+    ".trigger/**",
   ]),
 ]);
 

@@ -8,7 +8,33 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 ## Pipeline
 
-(not built yet — contract already fixed in `context/product/pipeline-rules.md`; this section fills with the engine diagram when code lands)
+Contract: `context/product/pipeline-rules.md`. Orchestrated by Trigger.dev v4 — project `sme24-ehs`, default region `eu-central-1` (Frankfurt, matching Supabase); each trigger site also names the region explicitly. Config in `trigger.config.ts` (`dirs: ["./trigger"]`, retry backoff ≥ 60s).
+
+Built so far — **stage 1 only** (`trigger/company-research.ts`):
+
+```
+POST /api/runs ──> create_analysis_run()      run row + client kpis, one transaction
+               └─> tasks.trigger("company-research", { runId })
+                     queue "company-research" (concurrencyLimit 1)
+                     concurrencyKey = userId          -> one run at a time per user
+
+company-research task
+  queued -> researching        (guarded: only from queued; escalation never rewinds)
+  1. read client kpis          origin='client', already written by the route — never re-written
+  2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
+                               ultra ignores a base donor; a hit copies `research` only
+  3. on miss: Parallel ultra   create run -> blocking-GET result loop (no webhook)
+                               public company name + domain only
+  4. (uploaded-PDF override — not built; see tickets.md Later)
+  -> research jsonb            { schema_version, source, output, basis[], parallel_run_id, cache? }
+  -> no_data                   iff 0 findings AND no disclosure AND no client kpis AND no upload
+  -> otherwise stays `researching`; T-005 owns reaching `completed`
+
+  onFailure  (retries exhausted) -> status failed + error column + agent_logs row
+  onCancel   (cancelled/crashed) -> same, from non-terminal statuses only
+```
+
+The payload is `{ runId }` alone — company name, domain, processor and upload path are read from the row, so a retry or escalation re-run always sees current values. `error` is internal-facing and no read path selects it.
 
 ## Data
 
