@@ -22,7 +22,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `context/tickets.md` — the work queue; what you build comes from here
 - `context/log.md` — one-line history; read the recent lines
 
-Reference: `context/product/kpi-contract.md` (which KPIs we ask vs. show), `context/product/packages.md` (tier source of truth), `context/library-docs.md` (per-library project rules), `CONTEXT.md` (domain glossary).
+Reference: `context/product/auth.md` (the auth contract), `context/product/kpi-contract.md` (which KPIs we ask vs. show), `context/product/packages.md` (tier source of truth), `context/library-docs.md` (per-library project rules), `CONTEXT.md` (domain glossary).
 
 ## Rules that never change
 
