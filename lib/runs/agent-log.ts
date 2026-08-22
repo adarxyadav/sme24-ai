@@ -38,6 +38,9 @@ export const LOG_MESSAGES = {
   proposalStored: "proposal stored",
   proposalFailed: "proposal failed",
   uploadRead: "uploaded report read",
+  escalation: "escalation",
+  escalationEntered: "escalation re-run entered",
+  escalationFailed: "escalation failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

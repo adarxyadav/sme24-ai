@@ -150,6 +150,24 @@ export const companyResearchTask = task({
         });
         return { runId, skipped: true as const };
       }
+    } else {
+      // An escalation re-run is exempt from the claim but must own the row
+      // from its first instruction: the handle still names the finished first
+      // run, and that is exactly what the stalled sweeper terminates
+      // (t-011-spec.md D1; t-021-spec.md D2). The status is left alone — the
+      // machine only moves forward.
+      const { error: handleError } = await service
+        .from("analysis_runs")
+        .update({ trigger_run_id: ctx.run.id })
+        .eq("id", runId);
+      if (handleError) throw new Error(`escalation handle write failed: ${handleError.message}`);
+
+      await agentLog(service, {
+        runId,
+        stage: STAGE,
+        message: LOG_MESSAGES.escalationEntered,
+        payload: { trigger_run_id: ctx.run.id, observed_status: run.status, processor: run.processor },
+      });
     }
 
     // Testing seam (t-012-spec.md): throw after the claim, so the retry must
@@ -315,6 +333,45 @@ export const companyResearchTask = task({
 
       if (extraction.ok) {
         webKpiCount = extraction.output.webKpiCount;
+
+        // Testing seam (t-021-spec.md D4): the count the escalation rule sees.
+        const numericWebKpis = process.env.FORCE_STAGE1_ESCALATE ? 0 : webKpiCount;
+
+        // Escalation (pipeline-rules.md): a base run with no numeric web KPI
+        // after extraction re-runs stages 1–2 on ultra, once. The re-run is a
+        // new run of this task with reason "escalation": exempt from the claim,
+        // it writes its own handle on entry, re-researches (the tier rule
+        // ignores base donors), and carries the chain from stage 2 to the end
+        // itself. So this run hands over and returns; nothing below runs twice.
+        if (run.processor === "base" && numericWebKpis === 0 && reason === "start") {
+          const { error: flipError } = await service
+            .from("analysis_runs")
+            .update({ processor: "ultra" })
+            .eq("id", runId);
+          if (flipError) throw new Error(`escalation flip failed: ${flipError.message}`);
+
+          await agentLog(service, {
+            runId,
+            stage: STAGE,
+            message: LOG_MESSAGES.escalation,
+            payload: { from: "base", to: "ultra", web_kpis: webKpiCount },
+          });
+
+          const escalated = await companyResearchTask.triggerAndWait(
+            { runId, reason: "escalation" },
+            { region: "eu-central-1" },
+          );
+          if (!escalated.ok) {
+            await agentLog(service, {
+              runId,
+              stage: STAGE,
+              level: "warn",
+              message: LOG_MESSAGES.escalationFailed,
+              payload: { child_run_id: escalated.id, error: String(escalated.error) },
+            });
+          }
+          return { runId, source: research.source, noData, findings: research.output.findings.length, webKpiCount, escalated: true as const };
+        }
 
         // Stage 3, same contract as the stage-2 handoff: its own hooks write
         // the terminal, and a child failure never retries this task.

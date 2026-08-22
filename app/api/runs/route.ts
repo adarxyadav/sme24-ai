@@ -56,6 +56,9 @@ const bodySchema = z
     reportingPeriod: z.string().trim().max(100).optional(),
     kpis: z.array(kpiSchema).max(CANONICAL_METRICS.length).optional(),
     uploadedReportPath: z.string().max(200).optional(),
+    // Explicit override only (pipeline-rules.md: ultra is the default; the
+    // form never sends this).
+    processor: z.enum(["base", "ultra"]).optional(),
   })
   .strict();
 
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = bodySchema.safeParse(payload);
   if (!parsed.success) return fail(INVALID, 400);
-  const { companyName, companyDomain, reportingPeriod, kpis, uploadedReportPath } = parsed.data;
+  const { companyName, companyDomain, reportingPeriod, kpis, uploadedReportPath, processor } = parsed.data;
 
   // A duplicate metric is only reachable from a hand-rolled POST; the form
   // cannot produce one. Compared as a set so the array carries each metric once.
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
       period: reportingPeriod ?? null,
     })),
     p_uploaded_report_path: uploadedReportPath ?? null,
+    p_processor: processor ?? "ultra",
   });
 
   if (error || typeof runId !== "string") {

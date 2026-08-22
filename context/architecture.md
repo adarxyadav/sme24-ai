@@ -69,6 +69,12 @@ company-research task
                                a cache hit never copies a donor's `upload` (T-020)
   -> research jsonb            { schema_version, source, output, basis[], parallel_run_id, cache?, upload? }
   -> no_data                   iff 0 findings AND no disclosure AND no client kpis AND no upload
+  escalation (base run, reason start, 0 numeric web KPIs after stage 2):
+                               processor -> ultra, `escalation` logged, then
+                               companyResearchTask.triggerAndWait({ runId, reason: "escalation" })
+                               and return — the re-run writes its own handle on
+                               entry, skips the claim, keeps the status, re-researches
+                               under the tier rule and carries stages 2–5 itself (T-021)
   -> otherwise: kpiExtractionTask.triggerAndWait({ runId })
                                the wait releases the per-user slot and is excluded
                                from maxDuration; a child failure is logged (warn),
@@ -106,7 +112,9 @@ peer-benchmarking task (own default queue)
   1. read research (sector, company) + kpis rows   from this run's row
   2. Parallel base, never cached   lib/parallel/client#benchmarkPeers — peers with
                                    trir/ltifr as disclosed + basis, year, scope, source;
-                                   sector references; `parallel run created` logged first
+                                   sector references; `parallel run created` logged first;
+                                   no numeric peer rate -> `escalation` logged, gathered
+                                   once more on ultra (T-021)
   3. model judges                  lib/benchmark/judge.ts — rate_metric, comparable peer
                                    indices, Hudson maturity label + rationale, verdict;
                                    skipped when no peers and no on-base references
@@ -155,7 +163,7 @@ The working statuses have a task inside them, but the task's hooks do not cover 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`, `20260822083347_create_expert_matches.sql`, `20260822084755_create_vault_proposals_and_bucket.sql`, `20260822091008_create_uploads_bucket.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`, `20260822083347_create_expert_matches.sql`, `20260822084755_create_vault_proposals_and_bucket.sql`, `20260822091008_create_uploads_bucket.sql`, `20260822092605_add_processor_to_create_analysis_run.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
@@ -169,7 +177,7 @@ Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_creat
 - Storage bucket `uploads` — private, PDF only, 20 MB, **no client policy**: `POST /api/uploads` stores `<user_id>/<uuid>.pdf` through the service role after verifying the session and the `%PDF-` magic bytes; the trigger route accepts a path only from the caller's folder and only if the object exists; stage 1 reads it. `create_analysis_run` gained `p_uploaded_report_path`.
 - Storage bucket `proposals` — private, PDF only, 10 MB; `storage.objects` select policy: first path folder = a run the caller owns. Signed URLs (60 s) minted by the session client in `lib/portal/proposal.ts`.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
-- `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb, p_uploaded_report_path text) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
+- `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb, p_uploaded_report_path text, p_processor processor_tier) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
 - `replace_extracted_kpis(p_run_id, p_kpis jsonb) returns integer` (`20260821163842`) — stage 2's only KPI write: deletes the run's `origin <> 'client'` rows and inserts the given rows for metrics no client row holds, in one transaction. Client rows keep their `id`/`created_at` across retries. Same privilege model.
 
 Every table and bucket the contract names now exists.
