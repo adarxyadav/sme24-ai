@@ -33,7 +33,6 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 - Post-report collection surface for the leading indicators and the client-only lagging four.
 - Base-processor escalation paths.
 - Uploaded report override (stage 1 step 4, scoped out of T-004 — `t-004-spec.md` D10): private Storage bucket, upload control on the search form, `uploaded_report_path` validated as owned by the caller in the trigger route, and a Claude PDF read that overrides the web result for any field it covers. *Check to be written by the repo owner before this moves up.*
-- Parallel run id is logged only after the result wait returns (`parallel run created` follows `researchCompany`), so a run killed mid-wait shows `cache miss` and nothing else while a paid ultra run exists. Log the id right after `createRun`, before the wait. Found 2026-08-22 during T-011 verification.
 - Escalation re-run (`t-005-spec.md` D7, deferred) must write `trigger_run_id = ctx.run.id` on entry: it is exempt from the claim, and a row still pointing at the finished first run is what the T-011 sweeper terminates (`t-011-spec.md` D1).
 - Cancelled-run terminal status: `onCancel` currently writes `failed` because the state machine has no `cancelled`. Decide whether a distinct status is worth a schema change.
 - Marketing site beyond the search form.

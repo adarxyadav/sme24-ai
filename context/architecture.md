@@ -59,8 +59,9 @@ company-research task
   1. read client kpis          origin='client', already written by the route — never re-written
   2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
                                ultra ignores a base donor; a hit copies `research` only
-  3. on miss: Parallel ultra   create run -> blocking-GET result loop (no webhook)
-                               public company name + domain only
+  3. on miss: Parallel ultra   create run -> `parallel run created` log row (the paid
+                               run is named before the wait, T-013) -> blocking-GET
+                               result loop (no webhook); public company name + domain only
   4. (uploaded-PDF override — not built; see tickets.md Later)
   -> research jsonb            { schema_version, source, output, basis[], parallel_run_id, cache? }
   -> no_data                   iff 0 findings AND no disclosure AND no client kpis AND no upload

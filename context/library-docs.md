@@ -55,6 +55,7 @@ Project-specific rules per third-party library — the gotchas and conventions t
 
 - Async only: create run → poll/webhook. Processor tiers and caching rules are owned by `context/product/pipeline-rules.md`. Receives only public company names — never customer data.
 - We poll, we do not use webhooks (`t-004-spec.md` D7). `GET /v1/tasks/runs/{id}/result?timeout=N` **long-polls** — it blocks server-side until the result is ready and returns 408 when the window closes — so the loop is a few blocking reads with no sleep between them, not a busy wait.
+- `researchCompany` takes `onRunCreated`, fired after the create call and before the result loop — the task logs the Parallel run id there, so a run that dies mid-wait still names the paid run.
 - Plain `fetch` in `lib/parallel/`, not the `parallel-web` SDK: two endpoints, and the SDK's value here is the polling loop we write anyway to bound it against the task's `maxDuration`.
 - JSON output mode is `task_spec.output_schema = { type: "json", json_schema: {...} }`. Schema descriptions are read as instructions by the model — they are the difference between a disclosed figure and an invented one, so write them as such.
 - Provenance comes back as `output.basis[]`: per-field `{ field, citations[{url, title, excerpts[]}], reasoning, confidence }`. Stored verbatim alongside our parsed output so it is never lossily re-derived.
