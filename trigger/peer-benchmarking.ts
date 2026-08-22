@@ -23,8 +23,10 @@ import { createServiceClient } from "@/lib/supabase/service";
 
 const STAGE = "benchmark";
 
-const TASK_MAX_DURATION_SECONDS = 1200;
-const PARALLEL_MAX_WAIT_SECONDS = 900;
+// An ultra peer call (the escalation path) runs as long as stage 1's ultra
+// research — ~16 min observed — so the same ceilings as stage 1 apply.
+const TASK_MAX_DURATION_SECONDS = 1800;
+const PARALLEL_MAX_WAIT_SECONDS = 1500;
 
 type Payload = { runId: string };
 
@@ -126,25 +128,49 @@ export const peerBenchmarkingTask = task({
     // Testing seam (t-016-spec.md D5): the insufficient-data path without a
     // paid call.
     if (!process.env.FORCE_STAGE3_EMPTY) {
-      // Peer research is never cached (pipeline-rules.md, Caching) and runs on
-      // the base processor by default (Escalation).
-      const result = await benchmarkPeers({
-        companyName: claimed.company_name,
-        naceCode: sector.nace_code,
-        naceLabel: sector.nace_label,
-        country: company.country,
-        headcount: company.headcount,
-        processor: "base",
-        maxWaitSeconds: PARALLEL_MAX_WAIT_SECONDS,
-        signal,
-        onRunCreated: (id) =>
-          agentLog(service, {
-            runId,
-            stage: STAGE,
-            message: LOG_MESSAGES.parallelCreated,
-            payload: { parallel_run_id: id, processor: "base" },
-          }),
-      });
+      const gather = async (processor: "base" | "ultra") => {
+        // Peer research is never cached (pipeline-rules.md, Caching) and runs on
+        // the base processor by default (Escalation).
+        const result = await benchmarkPeers({
+          companyName: claimed.company_name,
+          naceCode: sector.nace_code,
+          naceLabel: sector.nace_label,
+          country: company.country,
+          headcount: company.headcount,
+          processor,
+          maxWaitSeconds: PARALLEL_MAX_WAIT_SECONDS,
+          signal,
+          onRunCreated: (id) =>
+            agentLog(service, {
+              runId,
+              stage: STAGE,
+              message: LOG_MESSAGES.parallelCreated,
+              payload: { parallel_run_id: id, processor },
+            }),
+        });
+        // Testing seam (t-021-spec.md D4): the base result carries no rate.
+        const output =
+          processor === "base" && process.env.FORCE_STAGE3_NO_RATES
+            ? { ...result.output, peers: result.output.peers.map((p) => ({ ...p, trir: null, ltifr: null })) }
+            : result.output;
+        return { ...result, output };
+      };
+
+      let result = await gather("base");
+
+      // Escalation (pipeline-rules.md): no numeric peer TRIR or LTIFR on base
+      // -> retry the peer gathering once on ultra, logged.
+      const hasRate = (peersList: PeerFinding[]) => peersList.some((p) => p.trir !== null || p.ltifr !== null);
+      if (!hasRate(result.output.peers)) {
+        await agentLog(service, {
+          runId,
+          stage: STAGE,
+          message: LOG_MESSAGES.escalation,
+          payload: { from: "base", to: "ultra", peers: result.output.peers.length, base_parallel_run_id: result.parallelRunId },
+        });
+        result = await gather("ultra");
+      }
+
       peers = result.output.peers;
       references = result.output.references;
       parallelRunId = result.parallelRunId;
