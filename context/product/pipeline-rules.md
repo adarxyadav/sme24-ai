@@ -54,9 +54,9 @@ Each stage is a Trigger.dev task with its own retry; stages chain via `triggerAn
 - **Fail:** no web data and no upload → terminal `no_data`; the UI shows the standard no-data notice (copy lives in the read layer, nothing pipeline-generated).
 
 ### 2 — KPI extraction
-- **In:** stage-1 `research` (the upload override is already merged into it).
-- **Do:** normalize to the canonical KPIs (`kpi-contract.md` owns the list). `Output.object` + Zod. Extraction fills only metrics the client didn't supply — on conflict the client value wins. KPI writes are one atomic swap that touches only non-client rows, so client KPIs survive retries.
-- **Out:** `kpis` rows `{ metric, value, unit, period, source_url, source_excerpt, confidence, origin: 'web' | 'upload' | 'client' }` — this row shape is the read-layer interface; the UI marks client rows "Client-provided".
+- **In:** `{ runId }` — stage-1 `research` (the upload override is already merged into it) and the run's own client `kpis` rows are read from the row, never from a cache donor, so a cache-hit run still gets its own merge.
+- **Do:** normalize to the canonical KPIs (`kpi-contract.md` owns the list; `lib/runs/metrics.ts` is its one code source, and the Zod enum is derived from it). `Output.object` + Zod. **The model maps, code copies:** the model names, per canonical metric, the stage-1 finding that is this company's best figure (period, scope and basis rules in the prompt); code projects `value`, `unit`, `period`, `source_url`, `source_excerpt` and `confidence` from that finding verbatim, so no number is ever retyped. A finding with a null value is rejected, never read as zero. Extraction never fills `lost_time_injuries` (`kpi-contract.md`: web folds lost-time data under LTIFR). Extraction fills only metrics the client didn't supply — on conflict the client value wins. KPI writes are one atomic swap (`replace_extracted_kpis`, one transaction) that touches only non-client rows, so client KPIs survive retries. The run moves `researching -> extracting` on entry and `extracting -> completed` on exit, until stages 3–5 take over.
+- **Out:** `kpis` rows `{ metric, value, unit, period, source_url, source_excerpt, confidence, origin: 'web' | 'upload' | 'client' }` — this row shape is the read-layer interface; the UI marks client rows "Client-provided". For rates, `unit` carries the disclosed basis (e.g. `per 1,000,000 hours worked`) so a non-standard base stays visible and is never converted.
 
 ### 3 — Peer benchmarking
 - **In:** company KPIs + `sector` from stage-1 research.

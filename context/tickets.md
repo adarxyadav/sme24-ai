@@ -14,13 +14,9 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-(empty — next up: T-005)
+(empty — next up: T-006)
 
 ## Next
-
-### T-005 — Stage 2 KPI extraction
-- What: Trigger.dev task normalizing stage-1 research into canonical `kpis` rows via `Output.object` + Zod, written as one atomic swap that touches only non-client rows. The run reaches `completed` after this stage until stages 3–5 land.
-- Check: rows carry metric, value, unit, period, source_url, source_excerpt, confidence, and origin; client rows survive a forced retry unchanged and win every conflict; no metric outside the canonical list is ever written; the run ends `completed`.
 
 ### T-006 — Dashboard report read layer
 - What: RLS-scoped read layer plus the client dashboard — run list and run detail rendering the KPI ledger with provenance, "Client-provided" markers, and a rendered state for every run status.
