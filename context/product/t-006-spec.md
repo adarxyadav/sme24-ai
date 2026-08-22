@@ -321,6 +321,54 @@ Changed:
 - A fresh queued/in-progress run needs `npx trigger.dev@latest dev` running
   to advance; catching `queued` needs only the route.
 
+## Verification record
+
+All six Check clauses verified 2026-08-22 against the live stack (`pnpm dev`
+on the EU project, sessions minted for both test users with
+`auth.admin.generateLink` + `verifyOtp` and passed as the `@supabase/ssr`
+cookie; rendered HTML fetched with `curl` and grepped). Owner = the first
+test user (`9a17c844`), second user = `b4594f09`.
+
+1. **Reads only through the read layer** — four deliberate imports, each
+   failing `pnpm lint` with the D1 message before being reverted:
+   `@/lib/supabase/service` and `@/lib/supabase/server` from
+   `components/dashboard/KpiLedger.tsx` / `app/dashboard/page.tsx`,
+   `import type … "@/trigger/kpi-extraction"` from `app/dashboard/page.tsx`
+   (a type import is caught too), and `@/lib/runs/agent-log` from
+   `lib/portal/ledger.ts`.
+2. **Five distinct states** — `2a456942` completed (ledger: TRIR 1.13 per
+   million hours worked, fatalities 2, both citing nestle.com with excerpts;
+   four "Not disclosed"); `268cca06` → "Delayed"; `3b72bdd5` (Brunnenhof
+   Metallbau Wetzikon AG, T-004) → "Nothing public found"; `879ae160` fetched
+   in the same second as its POST → "Queued"; `1d3d2bed` (`researching`
+   since 05:52, the stalled-run gap already under Later) → "In progress". A
+   further fresh run, `784106af`, was picked up by a live dev worker and had
+   reached `extracting` before its page was fetched — it rendered the
+   completed ledger by then (cache hit on Nestlé; no Parallel call). Each
+   page carries exactly one state heading.
+3. **Failed shows no internals** — `268cca06`'s `error` column holds
+   `non-canonical metric rejected: headcount`; the rendered HTML has zero
+   hits for `non-canonical`, `headcount`, `agent_logs`; the only `error`
+   strings are Next's dev-overlay CSS/chunk names.
+4. **Client-provided** — `8e6facc4`: TRIR 0.95, fatalities 0, hours worked
+   512'000'000 each render "Client-provided" in the Source column (three
+   rows; the web LTIFR row from T-005's D4 exercise had been swapped out
+   again by that check's `[]` call, so the remaining three metrics show
+   "Not disclosed").
+5. **Another user's run is not-found** — user B on
+   `/dashboard/runs/2a456942…` → HTTP 404 with the `app/dashboard/not-found`
+   page; the HTML contains no company name or KPI; B's `/dashboard` lists
+   `1d3d2bed` and not `2a456942`. Signed out, `/dashboard` → 307 to
+   `/login?next=%2Fdashboard`.
+6. **Registry** — `ui-registry.md` lists Table, Badge, RunStatusBadge,
+   RunList, KpiLedger, the changed RunStatusCard, and the `/dashboard`
+   pages.
+
+Found on the way, not in the diff: the dev server running since 11:19 was
+not executing `proxy.ts` at all (anon `/dashboard` and `/expert` returned
+200/404 instead of 307); a restart fixed it. Stale dev process, not a code
+fault — the restarted server gates correctly.
+
 ## Doc updates this work obliges
 
 - `context/architecture.md` — Surfaces gains the dashboard and the three-tier

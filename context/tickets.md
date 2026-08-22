@@ -14,9 +14,7 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-### T-006 — Dashboard report read layer
-- What: RLS-scoped read layer plus the client dashboard — run list and run detail rendering the KPI ledger with provenance, "Client-provided" markers, and a rendered state for every run status.
-- Check: the dashboard reads only through the read layer, never the engine; queued, in-progress, completed, `no_data`, and `failed` each render a distinct state, with `failed` showing the generic delayed notice and no internals; client-origin rows render "Client-provided"; another user's run URL renders not-found; `ui-registry.md` lists every component added.
+(empty — next up: repo owner picks from Later)
 
 ## Next
 
