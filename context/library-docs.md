@@ -34,6 +34,10 @@ Project-specific rules per third-party library — the gotchas and conventions t
 - Gateway model strings are `provider/model` with version dots kept as dots (e.g. `anthropic/claude-sonnet-5`) — never rewrite dots to dashes.
 - `PIPELINE_MODEL` env var overrides the pipeline model for testing; production model choice is owned by `context/product/pipeline-rules.md`.
 - Structured output via `Output.object` + Zod, per the pipeline contract.
+- Import from `ai` only: a plain `provider/model` string routes through the Gateway by default, reading `AI_GATEWAY_API_KEY` itself — `@ai-sdk/gateway` is not a dependency and `createGateway` is not called.
+- `maxRetries: 0` on every call: Trigger.dev owns retries (backoff ≥ 60s); the SDK's default of 2 would nest a second loop inside the first. Pass the task's `signal` as `abortSignal` so a cancelled run aborts the request.
+- No `temperature`/`top_p`: current Anthropic models reject sampling parameters alongside thinking; the schema is what constrains the answer.
+- Model calls live in `lib/<stage>/` behind `server-only` and are invoked only from `trigger/` (AGENTS.md). The model emits judgments and references (e.g. a finding index), never retyped figures — code copies numbers from the cited source.
 
 ## Trigger.dev v4
 

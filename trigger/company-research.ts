@@ -10,6 +10,7 @@ import {
 import { researchCompany, type ProcessorTier } from "@/lib/parallel/client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
+import { kpiExtractionTask } from "@/trigger/kpi-extraction";
 
 // Stage 1 — company research (pipeline-rules.md, Stages; t-004-spec.md).
 // Order is the contract's: client KPIs already exist (written by the trigger
@@ -240,7 +241,40 @@ export const companyResearchTask = task({
 
     logger.log("stage 1 complete", { runId, source: research.source, noData });
 
-    return { runId, source: research.source, noData, findings: research.output.findings.length };
+    // Handoff to stage 2 (pipeline-rules.md: stages chain via triggerAndWait;
+    // t-005-spec.md D1). The wait releases this run's per-user slot and does
+    // not count toward maxDuration. A child failure is NOT a parent failure:
+    // stage 2's own onFailure has already written `failed`, and throwing here
+    // would retry this task — a second paid Parallel call to recover from a
+    // model failure.
+    let webKpiCount: number | null = null;
+
+    if (!noData) {
+      const extraction = await kpiExtractionTask.triggerAndWait(
+        { runId },
+        { region: "eu-central-1" },
+      );
+
+      if (extraction.ok) {
+        webKpiCount = extraction.output.webKpiCount;
+      } else {
+        await agentLog(service, {
+          runId,
+          stage: STAGE,
+          level: "warn",
+          message: LOG_MESSAGES.extractionFailed,
+          payload: { child_run_id: extraction.id, error: String(extraction.error) },
+        });
+      }
+    }
+
+    return {
+      runId,
+      source: research.source,
+      noData,
+      findings: research.output.findings.length,
+      webKpiCount,
+    };
   },
 
   // Cancellation is not failure and does not reach onFailure — the SDK docs are

@@ -20,6 +20,10 @@ export const LOG_MESSAGES = {
   alreadyClaimed: "run already claimed",
   sweptQueued: "queued run swept",
   enqueueFailed: "enqueue failed",
+  extractionStarted: "extraction started",
+  kpisExtracted: "kpis extracted",
+  runCompleted: "run completed",
+  extractionFailed: "extraction failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

@@ -10,7 +10,7 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 Contract: `context/product/pipeline-rules.md`. Orchestrated by Trigger.dev v4 — project `sme24-ehs`, default region `eu-central-1` (Frankfurt, matching Supabase); each trigger site also names the region explicitly. Config in `trigger.config.ts` (`dirs: ["./trigger"]`, retry backoff ≥ 60s).
 
-Built so far — **stage 1 only** (`trigger/company-research.ts`):
+Built so far — **stages 1 and 2** (`trigger/company-research.ts`, `trigger/kpi-extraction.ts`):
 
 ```
 POST /api/runs ──> create_analysis_run()      run row + client kpis, one transaction
@@ -39,10 +39,27 @@ company-research task
   4. (uploaded-PDF override — not built; see tickets.md Later)
   -> research jsonb            { schema_version, source, output, basis[], parallel_run_id, cache? }
   -> no_data                   iff 0 findings AND no disclosure AND no client kpis AND no upload
-  -> otherwise stays `researching`; T-005 owns reaching `completed`
+  -> otherwise: kpiExtractionTask.triggerAndWait({ runId })
+                               the wait releases the per-user slot and is excluded
+                               from maxDuration; a child failure is logged (warn),
+                               never thrown — stage 2's own hook wrote `failed`
 
   onFailure  (retries exhausted) -> status failed + error column + agent_logs row
   onCancel   (cancelled/crashed) -> same, from non-terminal statuses only
+
+kpi-extraction task (own default queue, no concurrency key)
+  researching|extracting -> extracting   conditional; 0 rows = run is elsewhere, throw
+  1. read research + client kpis   from this run's row — never the cache donor
+  2. model maps findings           ai generateText + Output.object, anthropic/claude-sonnet-5
+                                   via the Gateway; enum derived from lib/runs/metrics.ts;
+                                   lost_time_injuries never web-filled
+  3. code projects rows            value/unit/period/url/excerpt/confidence copied from the
+                                   named finding; null value, bad index, duplicate or
+                                   non-canonical metric -> throw (nothing written)
+  4. replace_extracted_kpis()      one transaction: delete origin<>'client', insert the
+                                   metrics the client did not supply (anti-join)
+  extracting -> completed          conditional, completed_at set; the run is now a cache donor
+  onFailure / onCancel             as stage 1; onCancel from `extracting` only
 ```
 
 The payload is `{ runId }` alone — company name, domain, processor and upload path are read from the row, so a retry or escalation re-run always sees current values. `error` is internal-facing and no read path selects it.
@@ -53,7 +70,7 @@ The payload is `{ runId }` alone — company name, domain, processor and upload 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
@@ -61,6 +78,7 @@ Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_creat
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
+- `replace_extracted_kpis(p_run_id, p_kpis jsonb) returns integer` (`20260821163842`) — stage 2's only KPI write: deletes the run's `origin <> 'client'` rows and inserts the given rows for metrics no client row holds, in one transaction. Client rows keep their `id`/`created_at` across retries. Same privilege model.
 
 Still to come (own tickets): `benchmarks`, `expert_matches`, `proposals`, `ehs_documents` (pgvector), Storage buckets for uploads and proposal PDFs.
 
