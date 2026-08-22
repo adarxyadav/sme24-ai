@@ -36,6 +36,18 @@ const PARALLEL_MAX_WAIT_SECONDS = 1500;
 // An `escalation` is a deliberate re-entry at the current status
 // (pipeline-rules.md, Escalation) and is never a duplicate.
 type TriggerReason = "start" | "escalation";
+
+const HANG_MS = 10 * 60_000;
+
+function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
 type Payload = { runId: string; reason?: TriggerReason };
 
 type RunRow = {
@@ -60,7 +72,7 @@ export const companyResearchTask = task({
     randomize: true,
   },
 
-  run: async ({ runId, reason = "start" }: Payload, { signal }) => {
+  run: async ({ runId, reason = "start" }: Payload, { ctx, signal }) => {
     const service = createServiceClient();
 
     // A testing seam, not shipped behaviour — it sits alongside PIPELINE_MODEL,
@@ -97,9 +109,13 @@ export const companyResearchTask = task({
     // run at its current status (pipeline-rules.md, Escalation), so it has no
     // claim to win and is never a duplicate.
     if (reason === "start") {
+      // The handle travels with the status: `trigger_run_id` is what the
+      // stalled sweeper asks Trigger.dev about (t-011-spec.md D1), and writing
+      // it in the claim itself leaves no window where the row is working with
+      // no task to name.
       const { data: claimed, error: claimError } = await service
         .from("analysis_runs")
-        .update({ status: "researching" })
+        .update({ status: "researching", trigger_run_id: ctx.run.id })
         .eq("id", runId)
         .eq("status", "queued")
         .select("id")
@@ -125,6 +141,13 @@ export const companyResearchTask = task({
         });
         return { runId, skipped: true as const };
       }
+    }
+
+    // Testing seam (t-011-spec.md D8): hold the run at `researching` long
+    // enough to cancel it or kill the worker. A plain timer, not `wait.for`, so
+    // Trigger.dev reports EXECUTING rather than WAITING.
+    if (process.env.FORCE_STAGE1_HANG) {
+      await sleepUntilAborted(HANG_MS, signal);
     }
 
     // Step 1 — client KPIs. Already written by the trigger route inside

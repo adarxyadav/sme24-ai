@@ -35,12 +35,25 @@ sweep-queued-runs task (cron */5, UTC)
                                                (failures, not sweeps: a run waiting
                                                 behind concurrency-1 is healthy)
 
+sweep-stalled-runs task (cron */5, UTC)
+  selects every working-status row         researching|extracting|benchmarking|matching|generating
+  runs.retrieve(trigger_run_id)            one call per row, page of 100
+  alive (PENDING_VERSION/QUEUED/DELAYED/    -> untouched; no age threshold
+         DEQUEUED/EXECUTING/WAITING)
+  dead  (COMPLETED/CANCELED/FAILED/CRASHED/ -> failed + error + agent_logs row, guarded on
+         SYSTEM_FAILURE/TIMED_OUT/EXPIRED)     working status AND the handle it asked about
+  null handle                              -> dead by construction (no task ever claimed it)
+  unknown (404 = other environment's run,  -> agent_logs warn, no write
+           thrown request, unmapped status)
+
 company-research task
   queued -> researching        claim: conditional update, attempted for every
                                `reason: start` trigger regardless of the status
                                read. The winner proceeds, a redundant trigger
                                exits without calling Parallel. An escalation
                                re-run is exempt and never rewinds a status.
+                               The same update writes trigger_run_id = ctx.run.id,
+                               the handle the stalled sweeper asks about.
   1. read client kpis          origin='client', already written by the route — never re-written
   2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
                                ultra ignores a base donor; a hit copies `research` only
@@ -58,7 +71,9 @@ company-research task
   onCancel   (cancelled/crashed) -> same, from non-terminal statuses only
 
 kpi-extraction task (own default queue, no concurrency key)
-  researching|extracting -> extracting   conditional; 0 rows = run is elsewhere, throw
+  researching|extracting -> extracting   conditional; 0 rows = run is elsewhere, throw;
+                                         overwrites trigger_run_id with the child's id —
+                                         at `extracting` the child decides liveness
   1. read research + client kpis   from this run's row — never the cache donor
   2. model maps findings           ai generateText + Output.object, anthropic/claude-sonnet-5
                                    via the Gateway; enum derived from lib/runs/metrics.ts;
@@ -76,15 +91,17 @@ The payload is `{ runId }` alone — company name, domain, processor and upload 
 
 `queued` is the one status with no task inside it, so it gets an external owner: `onFailure` and `onCancel` only fire once a task has started, leaving a run that never reached a worker (failed enqueue, `PENDING_VERSION` after a deploy skew, a worker dying pre-attempt) stuck forever. The sweeper closes that. The database is the authority for whether work already started — the conditional `queued -> researching` claim — rather than Trigger.dev's idempotency store, which clears a failed run's key and expires at 30 days.
 
+The working statuses have a task inside them, but the task's hooks do not cover a crash, a system failure, a worker that dies, or a platform-side cancellation with no worker to run `onCancel` — the row then holds a working status forever. The stalled sweeper (`trigger/sweep-stalled-runs.ts`, `t-011-spec.md`) owns those: every claim writes the Trigger.dev run id into `trigger_run_id`, and the sweeper asks `runs.retrieve` whether that run is still alive; nothing is decided by age, because a run may legitimately hold `researching` for the task's full `maxDuration`. Its write is conditional on both the working status and the handle it asked about, so a terminal written by a hook, or a stage-2 claim that replaced the handle, always wins. Uncertainty (a thrown or 404 `retrieve` — a 404 is what another Trigger.dev environment's run looks like, since the database is shared and the secret keys are not) never fails a run.
+
 ## Data
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
-- `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup. Partial index on `(created_at)` for `queued` runs serves the sweeper's scan.
+- `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `trigger_run_id` (the Trigger.dev run currently responsible for the row, written inside each claim), `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup. Partial indexes on `(created_at)` for `queued` rows and for working-status rows serve the two sweepers' scans.
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
