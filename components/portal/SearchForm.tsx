@@ -60,8 +60,32 @@ export function SearchForm() {
     const form = new FormData(event.currentTarget);
     const companyDomain = String(form.get("companyDomain") ?? "").trim();
     const reportingPeriod = String(form.get("reportingPeriod") ?? "").trim();
+    const report = form.get("report");
 
     try {
+      // The report goes up first, on its own route; the run then carries only
+      // the returned path, which the trigger route checks against the session.
+      let uploadedReportPath: string | undefined;
+      if (report instanceof File && report.size > 0) {
+        const upload = new FormData();
+        upload.set("file", report);
+        const uploadResponse = await fetch("/api/uploads", { method: "POST", body: upload });
+        const uploadBody: unknown = await uploadResponse.json().catch(() => null);
+        if (!uploadResponse.ok) {
+          const message =
+            uploadBody && typeof uploadBody === "object" && "error" in uploadBody &&
+            typeof uploadBody.error === "string"
+              ? uploadBody.error
+              : "We could not upload the report. Please try again.";
+          setError(message);
+          setPending(false);
+          return;
+        }
+        if (uploadBody && typeof uploadBody === "object" && "path" in uploadBody && typeof uploadBody.path === "string") {
+          uploadedReportPath = uploadBody.path;
+        }
+      }
+
       const response = await fetch("/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -69,6 +93,7 @@ export function SearchForm() {
           companyName: String(form.get("companyName") ?? "").trim(),
           ...(companyDomain ? { companyDomain } : {}),
           ...(reportingPeriod ? { reportingPeriod } : {}),
+          ...(uploadedReportPath ? { uploadedReportPath } : {}),
           kpis: collectKpis(form),
         }),
       });
@@ -136,6 +161,13 @@ export function SearchForm() {
               />
               <FieldDescription>
                 Optional. Helps us find the right company.
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="report">Your latest safety report (PDF)</FieldLabel>
+              <Input id="report" name="report" type="file" accept="application/pdf" />
+              <FieldDescription>
+                Optional. Figures in your own report override what we find on the web. PDF, up to 20 MB; it never leaves our EU systems.
               </FieldDescription>
             </Field>
           </FieldGroup>

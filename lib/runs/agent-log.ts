@@ -37,6 +37,7 @@ export const LOG_MESSAGES = {
   vaultRetrieved: "vault retrieved",
   proposalStored: "proposal stored",
   proposalFailed: "proposal failed",
+  uploadRead: "uploaded report read",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

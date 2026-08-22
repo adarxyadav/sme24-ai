@@ -34,12 +34,17 @@ export type ExtractedKpiRow = {
   source_url: string | null;
   source_excerpt: string | null;
   confidence: "low" | "medium" | "high";
-  origin: "web";
+  origin: "web" | "upload";
 };
+
+// The catalogue stage 2 maps over: web findings plus, when the client uploaded
+// a report, its findings tagged `upload` (t-020-spec.md D3). The tag rides
+// with the finding so the projected row keeps its provenance.
+export type CatalogueFinding = EhsFinding & { origin: "web" | "upload" };
 
 type MapFindingsInput = {
   companyName: string;
-  findings: EhsFinding[];
+  findings: CatalogueFinding[];
   // Metrics the client supplied: listed as "do not fill" so no judgment is
   // spent on them. The database enforces the rule; this only saves tokens.
   clientMetrics: CanonicalMetric[];
@@ -77,11 +82,13 @@ function buildPrompt({
     "- Rates: prefer a finding whose basis is per 1,000,000 hours worked. If the only figure for a rate is on another basis, you may still map it — the basis is stored with it and is never converted.",
     "- Counts must be whole-company annual counts for one period, not multi-year totals.",
     "- If no finding fits a metric, leave that metric out. An empty list is a valid answer.",
+    "- Findings with origin 'upload' come from the company's own uploaded report and override web findings: for any metric the uploaded report states, map the upload finding, not a web one.",
     "- Rationale: one short sentence on why this finding is the right one.",
   ].join("\n");
 
   const catalogue = findings.map((finding, index) => ({
     index,
+    origin: finding.origin,
     metric: finding.metric,
     value: finding.value,
     unit: finding.unit,
@@ -156,7 +163,7 @@ export function projectRows({
   findings,
   mappings,
 }: {
-  findings: EhsFinding[];
+  findings: CatalogueFinding[];
   mappings: Array<{ metric: string; finding_index: number }>;
 }): ExtractedKpiRow[] {
   const seen = new Set<string>();
@@ -195,7 +202,7 @@ export function projectRows({
       source_url: finding.source_url,
       source_excerpt: finding.source_excerpt,
       confidence: finding.confidence,
-      origin: "web",
+      origin: finding.origin,
     });
   }
 

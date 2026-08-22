@@ -33,6 +33,16 @@ function Source({ kpi }: { kpi: KpiRow }) {
   if (kpi.origin === "client") {
     return <span className="text-muted-foreground">Client-provided</span>;
   }
+  if (kpi.origin === "upload") {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-muted-foreground">Uploaded report</span>
+        {kpi.source_excerpt && (
+          <q className="line-clamp-3 text-xs text-muted-foreground">{kpi.source_excerpt}</q>
+        )}
+      </div>
+    );
+  }
   if (!kpi.source_url) {
     return <span className="text-muted-foreground">—</span>;
   }

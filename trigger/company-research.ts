@@ -9,6 +9,7 @@ import {
 } from "@/lib/runs/research";
 import { researchCompany, type ProcessorTier } from "@/lib/parallel/client";
 import { createServiceClient } from "@/lib/supabase/service";
+import { readUploadedReport } from "@/lib/upload/read";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 import { kpiExtractionTask } from "@/trigger/kpi-extraction";
 import { peerBenchmarkingTask } from "@/trigger/peer-benchmarking";
@@ -248,10 +249,26 @@ export const companyResearchTask = task({
       });
     }
 
-    // Step 4 — the uploaded PDF override is scoped out of T-004 (spec D10): no
-    // Storage bucket exists and nothing populates uploaded_report_path, so the
-    // condition is evaluated for real and is always false today.
+    // Step 4 — the uploaded report (pipeline-rules.md, stage 1; t-020-spec.md).
+    // Read after the web result so a retry that already has research still
+    // reads it; stored beside the web findings, never merged into them, so a
+    // cache hit can share the web part alone.
     const hasUpload = run.uploaded_report_path !== null;
+
+    if (run.uploaded_report_path !== null) {
+      const upload = await readUploadedReport(service, {
+        path: run.uploaded_report_path,
+        companyName: run.company_name,
+        signal,
+      });
+      research = { ...research, upload };
+      await agentLog(service, {
+        runId,
+        stage: STAGE,
+        message: LOG_MESSAGES.uploadRead,
+        payload: { findings: upload.findings.length, model: upload.model, title: upload.document_title },
+      });
+    }
 
     const noData = isNoData({ output: research.output, clientKpiCount, hasUpload });
 
