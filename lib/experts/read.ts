@@ -33,3 +33,19 @@ export async function getOwnExpert(): Promise<ExpertRow | null> {
   }
   return data;
 }
+
+export type OwnMatch = { run_id: string; company_name: string; rank: number; matched_at: string };
+
+// The expert's side of stage 4, through a security definer function: company
+// name and rank only — an expert holds no select on analysis_runs.
+export async function getOwnMatches(): Promise<OwnMatch[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("my_expert_matches");
+  if (error) {
+    console.error("expert matches lookup failed", error.message);
+    return [];
+  }
+  // No generated DB types in this repo; the function's declared return shape
+  // is exactly OwnMatch (migration create_expert_matches).
+  return (data ?? []) as OwnMatch[];
+}

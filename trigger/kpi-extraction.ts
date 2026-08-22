@@ -157,8 +157,19 @@ export const kpiExtractionTask = task({
       throw new Error("Forced stage 2 retry (FORCE_STAGE2_RETRY)");
     }
 
-    // The run stays `extracting`: stage 3 claims it from there and owns
-    // `completed` (pipeline-rules.md, Run state machine; t-016-spec.md D1).
+    // The run stays `extracting` for stage 3 to claim — but the handle goes
+    // back to the waiting parent first. This run is about to end COMPLETED,
+    // and a stalled-sweeper tick between that and stage 3's claim would read
+    // "working row, dead handle" and fail the run (t-018-spec.md D4). The
+    // parent is alive inside triggerAndWait until the next stage takes over.
+    const { error: handBackError } = await service
+      .from("analysis_runs")
+      .update({ trigger_run_id: ctx.run.parentTaskRunId ?? ctx.run.id })
+      .eq("id", runId)
+      .eq("status", "extracting")
+      .eq("trigger_run_id", ctx.run.id);
+
+    if (handBackError) throw new Error(`handle hand-back failed: ${handBackError.message}`);
     logger.log("stage 2 complete", { runId, webKpis: rows.length });
 
     // The waiting parent reads this; the deferred base -> ultra escalation
