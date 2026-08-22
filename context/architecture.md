@@ -53,7 +53,9 @@ company-research task
                                exits without calling Parallel. An escalation
                                re-run is exempt and never rewinds a status.
                                The same update writes trigger_run_id = ctx.run.id,
-                               the handle the stalled sweeper asks about.
+                               the handle the stalled sweeper asks about. A retry
+                               (same run id) re-wins: `researching` + own handle
+                               is accepted, any other handle loses (T-012).
   1. read client kpis          origin='client', already written by the route — never re-written
   2. cache lookup              cacheKey() -> newest completed run, same key, < 30 days
                                ultra ignores a base donor; a hit copies `research` only
