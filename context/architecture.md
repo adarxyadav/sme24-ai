@@ -4,7 +4,7 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 ## Surfaces
 
-Built so far: the marketing page with the search form (`/`), the auth pages, the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger, incident cost and benchmark), and the expert surface (`/expert/apply` application + status, `/expert` profile for approved experts — T-017). Admin surface is Later.
+Built so far: the marketing page with the search form (`/`), the auth pages, the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger, incident cost and benchmark), the expert surface (`/expert/apply` application + status, `/expert` profile + matches for approved experts — T-017/T-018), and the admin surface (`/admin` overview, runs + agent log detail, users, expert approval — T-022; reads through RLS admin policies via `lib/admin/read.ts`, the one write in `actions/admin.ts`).
 
 **The read-layer boundary** (`t-006-spec.md` D1). Three tiers, each a directory, enforced by `no-restricted-imports` in `eslint.config.mjs` so `pnpm lint` fails on a crossing:
 
@@ -163,7 +163,7 @@ The working statuses have a task inside them, but the task's hooks do not cover 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`, `20260822083347_create_expert_matches.sql`, `20260822084755_create_vault_proposals_and_bucket.sql`, `20260822091008_create_uploads_bucket.sql`, `20260822092605_add_processor_to_create_analysis_run.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`, `20260822083347_create_expert_matches.sql`, `20260822084755_create_vault_proposals_and_bucket.sql`, `20260822091008_create_uploads_bucket.sql`, `20260822092605_add_processor_to_create_analysis_run.sql`, `20260822102748_add_admin_read_policies.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
@@ -206,5 +206,6 @@ RLS is the access boundary:
 - `analysis_runs`: `authenticated` may `select` rows where `user_id = auth.uid()`.
 - `kpis`: `authenticated` may `select` rows whose run they own.
 - Grants start open, not closed: `pg_default_acl` gives `anon`, `authenticated` and `service_role` every privilege on each new table in `public`. So every new table opens with `revoke all on <table> from public, anon, authenticated;` and then grants back only what that table needs — never a partial revoke listing single privileges, which is how `analysis_runs`/`kpis` kept `anon`'s default `select` until `20260821090607`. Denying at the grant keeps RLS from being the only layer.
-- `agent_logs`: no policies and all grants revoked for `anon`/`authenticated` — clients never see pipeline internals.
+- `agent_logs`: `select` granted to `authenticated` but the only policy is `is_admin()` — clients read zero rows; admins (the operator surface) read everything. `anon` holds nothing.
+- Admin reads: `is_admin()` (`security definer` over the caller's own profile) backs one select policy per table (`analysis_runs`, `kpis`, `benchmarks`, `expert_matches`, `proposals`, `experts`, `profiles`, `agent_logs`); `admin_list_users()` projects emails from `auth.users`, gated inside. No admin write policy — `actions/admin.ts` uses the service role after `getUser()` proves `admin` (T-022).
 - Writes: no write policies anywhere and `insert/update/delete` revoked from `anon`/`authenticated`; only the service role (`lib/supabase/service.ts`, used in `trigger/`, `app/api/webhooks/`, and the trigger route) writes. `app/api/runs` writes through it after authenticating the session, taking `user_id` from the verified claims and never from the body. Both of its writes — the run row and the client `kpis` rows — go through `create_analysis_run(...)`, one transaction, so a run can never exist without the client figures it was started with.
