@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import { BenchmarkCard } from "@/components/dashboard/BenchmarkCard";
 import { ExpertMatchesCard } from "@/components/dashboard/ExpertMatchesCard";
+import { ProposalCard } from "@/components/dashboard/ProposalCard";
 import { IncidentCostCard } from "@/components/dashboard/IncidentCostCard";
 import { KpiLedger } from "@/components/dashboard/KpiLedger";
 import { RunProgress } from "@/components/dashboard/RunProgress";
@@ -12,6 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { getRunBenchmark } from "@/lib/portal/benchmark";
 import { buildIncidentCost } from "@/lib/portal/incident-cost";
 import { getRunMatches } from "@/lib/portal/matches";
+import { getRunProposal } from "@/lib/portal/proposal";
 import { getRunKpis } from "@/lib/portal/kpis";
 import { buildLedger } from "@/lib/portal/ledger";
 import { runState } from "@/lib/portal/run-state";
@@ -38,6 +40,7 @@ export default async function RunPage({
   const benchmark = kpis ? await getRunBenchmark(run.id) : null;
   // Shown only once a run has a benchmark row, i.e. went through stage 3+.
   const matches = benchmark ? await getRunMatches(run.id) : null;
+  const proposal = benchmark ? await getRunProposal(run.id) : null;
   const live = state === "queued" || state === "in_progress";
 
   return (
@@ -59,6 +62,7 @@ export default async function RunPage({
       )}
       {kpis && <IncidentCostCard cost={cost} />}
       {benchmark && <BenchmarkCard benchmark={benchmark} />}
+      {proposal && <ProposalCard proposal={proposal} />}
       {matches && <ExpertMatchesCard matches={matches} />}
     </>
   );
