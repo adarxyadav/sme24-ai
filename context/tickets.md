@@ -14,13 +14,13 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-(empty — next up: T-006)
-
-## Next
-
 ### T-006 — Dashboard report read layer
 - What: RLS-scoped read layer plus the client dashboard — run list and run detail rendering the KPI ledger with provenance, "Client-provided" markers, and a rendered state for every run status.
 - Check: the dashboard reads only through the read layer, never the engine; queued, in-progress, completed, `no_data`, and `failed` each render a distinct state, with `failed` showing the generic delayed notice and no internals; client-origin rows render "Client-provided"; another user's run URL renders not-found; `ui-registry.md` lists every component added.
+
+## Next
+
+(empty)
 
 ## Later
 
@@ -28,6 +28,8 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 
 - Pipeline stages 3–5: peer benchmarking, expert matchmaking, proposal generation + EHS Vault.
 - Annual incident cost (CHF) in the read layer, once the loss constants have their source doc in `context/product/`.
+- Display-time derivations from `kpi-contract.md` (recordable / lost-time counts from rate × hours, hours from headcount) — the ledger shows stored rows only (`t-006-spec.md` D4); needs the ≈ + formula rendering rule designed first.
+- Live run progress on the dashboard (polling or Trigger.dev realtime) — T-006 tells the user to refresh; a realtime hook would couple the dashboard to the engine's run ids, so it needs its own boundary decision.
 - Packages: fill `context/product/packages.md`, then Stripe Checkout with MWST and the retainer contact form.
 - Expert and admin surfaces.
 - Post-report collection surface for the leading indicators and the client-only lagging four.

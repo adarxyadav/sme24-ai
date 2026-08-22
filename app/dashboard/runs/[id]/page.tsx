@@ -1,6 +1,13 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { ArrowLeft } from "lucide-react";
+import { KpiLedger } from "@/components/dashboard/KpiLedger";
 import { RunStatusCard } from "@/components/dashboard/RunStatusCard";
+import { buttonVariants } from "@/components/ui/button";
+import { getRunKpis } from "@/lib/portal/kpis";
+import { buildLedger } from "@/lib/portal/ledger";
+import { runState } from "@/lib/portal/run-state";
 import { getRunById } from "@/lib/portal/runs";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -16,9 +23,27 @@ export default async function RunPage({
   const run = await getRunById(id);
   if (!run) notFound();
 
+  const ledger =
+    runState(run.status) === "completed"
+      ? buildLedger(await getRunKpis(run.id))
+      : null;
+
   return (
-    <section className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center px-4 py-16 sm:px-6">
+    <>
+      <Link
+        href="/dashboard"
+        className={buttonVariants({ variant: "ghost", size: "sm" })}
+      >
+        <ArrowLeft aria-hidden="true" />
+        Your analyses
+      </Link>
       <RunStatusCard run={run} />
-    </section>
+      {ledger && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xl font-medium tracking-tight">KPI ledger</h2>
+          <KpiLedger rows={ledger} />
+        </section>
+      )}
+    </>
   );
 }

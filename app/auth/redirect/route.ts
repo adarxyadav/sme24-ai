@@ -2,8 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getUser } from "@/lib/auth/get-user";
 import { createClient } from "@/lib/supabase/server";
 
-// Role dispatcher: every sign-in lands here. Client target is "/" until the
-// dashboard ships (T-006).
+// Role dispatcher: every sign-in lands here.
 export async function GET(request: NextRequest) {
   const current = await getUser();
   if (!current) {
@@ -22,6 +21,6 @@ export async function GET(request: NextRequest) {
         ? "/expert"
         : expert_status === "pending"
           ? "/expert/apply"
-          : "/";
+          : "/dashboard";
   return NextResponse.redirect(new URL(target, request.url));
 }

@@ -4,7 +4,17 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 ## Surfaces
 
-(not built yet)
+Built so far: the marketing page with the search form (`/`), the auth pages, and the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger). Expert and admin surfaces are Later.
+
+**The read-layer boundary** (`t-006-spec.md` D1). Three tiers, each a directory, enforced by `no-restricted-imports` in `eslint.config.mjs` so `pnpm lint` fails on a crossing:
+
+| Tier | Directories | May import |
+|---|---|---|
+| Engine | `trigger/`, `lib/parallel/`, `lib/extraction/`, `lib/runs/` (except `metrics.ts`), `lib/supabase/service.ts` | anything |
+| Read layer | `lib/portal/` | `lib/supabase/server.ts` (the session client), `lib/runs/metrics.ts` (the contract constants) |
+| Dashboard | `app/dashboard/`, `components/dashboard/` | `lib/portal/`, `lib/utils.ts`, `components/ui/` |
+
+The dashboard cannot reach a Supabase client, so "reads only through the read layer" is structural. The read layer selects explicit column lists that never include `error`, `research`, `cache_key`, `processor` or `uploaded_report_path`; RLS (below) is its only row filter — no `user_id` predicate anywhere, so another user's run is a zero-row result and the page renders not-found. `lib/portal/run-state.ts` maps the nine-value `run_status` enum onto five render states with an exhaustive `Record`; the `failed` state is fixed copy. No derivation from `kpi-contract.md` is computed yet (Later).
 
 ## Pipeline
 
@@ -93,7 +103,7 @@ Ways in, both on `/login` (`components/portal/LoginCard`):
 - Failures land on `/login?error=link_expired|oauth_failed`; the page maps the code to human copy. No Supabase error text reaches the UI.
 - `next` is validated by `lib/auth/safe-next.ts` (relative path only — one leading `/`, no `//`, no backslash, no scheme, no control chars); anything else falls back to `/auth/redirect`. Used by both returns, the login page, and the proxy.
 
-Landing: `/auth/redirect` (route handler) reads `lib/auth/get-user.ts` → `{ user, profile }` and dispatches `admin` → `/admin`, `expert` → `/expert`, pending applicant → `/expert/apply`, else `/` (the client target becomes `/dashboard` with T-006). A session whose profile is missing is signed out there rather than looping.
+Landing: `/auth/redirect` (route handler) reads `lib/auth/get-user.ts` → `{ user, profile }` and dispatches `admin` → `/admin`, `expert` → `/expert`, pending applicant → `/expert/apply`, else `/dashboard`. A session whose profile is missing is signed out there rather than looping.
 
 Every request: `proxy.ts` → `lib/supabase/proxy.ts#updateSession` refreshes cookies via `getClaims()` (local JWT verification, no Auth round-trip; `getUser()` is reserved for live-truth moments). No session + `/dashboard`, `/expert`, `/admin` → `/login?next=<path>`; session + `/login` → `/auth/redirect`. `/auth/*` and non-GET requests are never redirected (a Server Action POST must reach its page). The proxy never reads `profiles`; role checks happen in pages and actions via `get-user.ts`. Logout is `signOut({ scope: 'local' })`.
 
