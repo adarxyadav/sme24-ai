@@ -133,20 +133,27 @@ async function fetchResult(
 // signal comes from the task's run context: a cancelled run (a redeploy, a
 // stalled worker, maxDuration) aborts the in-flight request instead of leaving
 // it hanging until the process dies.
+//
+// onRunCreated fires as soon as Parallel has accepted the run and before the
+// result wait begins: the paid run now exists, and the caller records its id
+// so a task that dies mid-wait still names it (T-013).
 export async function researchCompany({
   companyName,
   companyDomain,
   processor,
   maxWaitSeconds,
   signal,
+  onRunCreated,
 }: {
   companyName: string;
   companyDomain: string | null;
   processor: ProcessorTier;
   maxWaitSeconds: number;
   signal?: AbortSignal;
+  onRunCreated?: (parallelRunId: string) => Promise<void>;
 }): Promise<ParallelResearch> {
   const parallelRunId = await createRun(companyName, companyDomain, processor, signal);
+  await onRunCreated?.(parallelRunId);
   const { output, basis } = await fetchResult(parallelRunId, maxWaitSeconds, signal);
   return { parallelRunId, output, basis };
 }

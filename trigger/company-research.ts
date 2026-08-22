@@ -226,13 +226,15 @@ export const companyResearchTask = task({
         maxWaitSeconds: PARALLEL_MAX_WAIT_SECONDS,
         // Aborts the in-flight Parallel request when the run is cancelled.
         signal,
-      });
-
-      await agentLog(service, {
-        runId,
-        stage: STAGE,
-        message: LOG_MESSAGES.parallelCreated,
-        payload: { parallel_run_id: result.parallelRunId, processor: run.processor },
+        // Logged before the wait, not after: the paid run exists from here,
+        // and a task that dies mid-wait must still name it (T-013).
+        onRunCreated: (parallelRunId) =>
+          agentLog(service, {
+            runId,
+            stage: STAGE,
+            message: LOG_MESSAGES.parallelCreated,
+            payload: { parallel_run_id: parallelRunId, processor: run.processor },
+          }),
       });
 
       research = buildResearchEnvelope({
