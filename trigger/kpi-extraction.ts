@@ -9,8 +9,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 // Triggered by stage 1 via triggerAndWait once `research` is written. Reads
 // the research and the client rows from the run itself — never from a cache
 // donor — and writes the web rows in one atomic swap that cannot touch a
-// client row. Owns the last two moves of the state machine for now:
-// researching -> extracting -> completed.
+// client row. Moves the machine one step, researching -> extracting; stage 3
+// claims the run from `extracting`.
 
 const STAGE = "extraction";
 
@@ -157,26 +157,8 @@ export const kpiExtractionTask = task({
       throw new Error("Forced stage 2 retry (FORCE_STAGE2_RETRY)");
     }
 
-    // From `extracting` only: the machine moves forward, and a cancellation
-    // or failure that already terminated the run must not be overwritten.
-    const { data: completed, error: completeError } = await service
-      .from("analysis_runs")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
-      .eq("id", runId)
-      .eq("status", "extracting")
-      .select("id")
-      .maybeSingle<{ id: string }>();
-
-    if (completeError) throw new Error(`completion write failed: ${completeError.message}`);
-    if (!completed) throw new Error(`run ${runId} left extracting before completion`);
-
-    await agentLog(service, {
-      runId,
-      stage: STAGE,
-      message: LOG_MESSAGES.runCompleted,
-      payload: { web_kpis: rows.length },
-    });
-
+    // The run stays `extracting`: stage 3 claims it from there and owns
+    // `completed` (pipeline-rules.md, Run state machine; t-016-spec.md D1).
     logger.log("stage 2 complete", { runId, webKpis: rows.length });
 
     // The waiting parent reads this; the deferred base -> ultra escalation
