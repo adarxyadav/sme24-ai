@@ -2,11 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
+import { BenchmarkCard } from "@/components/dashboard/BenchmarkCard";
 import { IncidentCostCard } from "@/components/dashboard/IncidentCostCard";
 import { KpiLedger } from "@/components/dashboard/KpiLedger";
 import { RunProgress } from "@/components/dashboard/RunProgress";
 import { RunStatusCard } from "@/components/dashboard/RunStatusCard";
 import { buttonVariants } from "@/components/ui/button";
+import { getRunBenchmark } from "@/lib/portal/benchmark";
 import { buildIncidentCost } from "@/lib/portal/incident-cost";
 import { getRunKpis } from "@/lib/portal/kpis";
 import { buildLedger } from "@/lib/portal/ledger";
@@ -30,6 +32,8 @@ export default async function RunPage({
   const kpis = state === "completed" ? await getRunKpis(run.id) : null;
   const ledger = kpis ? buildLedger(kpis) : null;
   const cost = kpis ? buildIncidentCost(kpis) : null;
+  // Runs completed before stage 3 existed have no row and show no card.
+  const benchmark = kpis ? await getRunBenchmark(run.id) : null;
   const live = state === "queued" || state === "in_progress";
 
   return (
@@ -50,6 +54,7 @@ export default async function RunPage({
         </section>
       )}
       {kpis && <IncidentCostCard cost={cost} />}
+      {benchmark && <BenchmarkCard benchmark={benchmark} />}
     </>
   );
 }

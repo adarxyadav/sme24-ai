@@ -3,8 +3,9 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 // The read-layer boundary (t-006-spec.md D1). The dashboard reads only through
-// lib/portal/, and lib/portal/ reaches only the session client and the metric
-// contract. Enforced here rather than by convention so `pnpm lint` — already a
+// lib/portal/, and lib/portal/ reaches only the session client and the contract
+// modules — lib/runs/metrics and lib/runs/rank (pure, shared with the engine so
+// rank is derived by one function at write and read time, t-016-spec.md). Enforced here rather than by convention so `pnpm lint` — already a
 // handoff gate — fails on a bad import.
 const ENGINE = [
   "@/trigger/*",
@@ -51,7 +52,7 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
-              group: ["@/lib/runs/*", "!@/lib/runs/metrics", ...ENGINE],
+              group: ["@/lib/runs/*", "!@/lib/runs/metrics", "!@/lib/runs/rank", ...ENGINE],
               message:
                 "The read layer touches the session client and the metric contract only (t-006-spec.md D1).",
             },

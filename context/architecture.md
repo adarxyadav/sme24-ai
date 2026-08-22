@@ -10,8 +10,8 @@ Built so far: the marketing page with the search form (`/`), the auth pages, and
 
 | Tier | Directories | May import |
 |---|---|---|
-| Engine | `trigger/`, `lib/parallel/`, `lib/extraction/`, `lib/runs/` (except `metrics.ts`), `lib/supabase/service.ts` | anything |
-| Read layer | `lib/portal/` | `lib/supabase/server.ts` (the session client), `lib/runs/metrics.ts` (the contract constants) |
+| Engine | `trigger/`, `lib/parallel/`, `lib/extraction/`, `lib/benchmark/`, `lib/runs/` (except `metrics.ts`, `rank.ts`), `lib/supabase/service.ts` | anything |
+| Read layer | `lib/portal/` | `lib/supabase/server.ts` (the session client), `lib/runs/metrics.ts` (the contract constants), `lib/runs/rank.ts` (the benchmark arithmetic, shared with the engine) |
 | Dashboard | `app/dashboard/`, `components/dashboard/` | `lib/portal/`, `lib/utils.ts`, `components/ui/` |
 
 The dashboard cannot reach a Supabase client, so "reads only through the read layer" is structural. The read layer selects explicit column lists that never include `error`, `research`, `cache_key`, `processor` or `uploaded_report_path`; RLS (below) is its only row filter — no `user_id` predicate anywhere, so another user's run is a zero-row result and the page renders not-found. `lib/portal/run-state.ts` maps the nine-value `run_status` enum onto five render states with an exhaustive `Record`; the `failed` state is fixed copy. `lib/portal/incident-cost.ts` applies the `kpi-contract.md` loss model to stored count rows at display time (constants cite the ISO 45004 docx; T-015); counts derived from rates × hours are not computed yet (T-016). The run page polls while a run is queued or in progress (`RunProgress`: `router.refresh()` every 5 s, re-running the same read-layer query — T-014); no realtime, no engine ids.
@@ -20,7 +20,7 @@ The dashboard cannot reach a Supabase client, so "reads only through the read la
 
 Contract: `context/product/pipeline-rules.md`. Orchestrated by Trigger.dev v4 — project `sme24-ehs`, default region `eu-central-1` (Frankfurt, matching Supabase); each trigger site also names the region explicitly. Config in `trigger.config.ts` (`dirs: ["./trigger"]`, retry backoff ≥ 60s).
 
-Built so far — **stages 1 and 2** (`trigger/company-research.ts`, `trigger/kpi-extraction.ts`):
+Built so far — **stages 1, 2 and 3** (`trigger/company-research.ts`, `trigger/kpi-extraction.ts`, `trigger/peer-benchmarking.ts`):
 
 ```
 POST /api/runs ──> create_analysis_run()      run row + client kpis, one transaction
@@ -69,6 +69,7 @@ company-research task
                                the wait releases the per-user slot and is excluded
                                from maxDuration; a child failure is logged (warn),
                                never thrown — stage 2's own hook wrote `failed`
+  -> then: peerBenchmarkingTask.triggerAndWait({ runId })   same contract
 
   onFailure  (retries exhausted) -> status failed + error column + agent_logs row
   onCancel   (cancelled/crashed) -> same, from non-terminal statuses only
@@ -86,8 +87,23 @@ kpi-extraction task (own default queue, no concurrency key)
                                    non-canonical metric -> throw (nothing written)
   4. replace_extracted_kpis()      one transaction: delete origin<>'client', insert the
                                    metrics the client did not supply (anti-join)
-  extracting -> completed          conditional, completed_at set; the run is now a cache donor
+  (stays `extracting`)             stage 3 claims it from here
   onFailure / onCancel             as stage 1; onCancel from `extracting` only
+
+peer-benchmarking task (own default queue)
+  extracting|benchmarking -> benchmarking   conditional; overwrites trigger_run_id
+  1. read research (sector, company) + kpis rows   from this run's row
+  2. Parallel base, never cached   lib/parallel/client#benchmarkPeers — peers with
+                                   trir/ltifr as disclosed + basis, year, scope, source;
+                                   sector references; `parallel run created` logged first
+  3. model judges                  lib/benchmark/judge.ts — rate_metric, comparable peer
+                                   indices, Hudson maturity label + rationale, verdict;
+                                   skipped when no peers and no on-base references
+  4. code counts                   lib/runs/rank.ts — rank (1 = lowest rate), peer_count,
+                                   references only on rate_metric's metric + per-million base
+  -> benchmarks row (upsert on run_id)
+  benchmarking -> completed        conditional, completed_at set; the run is now a cache donor
+  onFailure / onCancel             as stage 1; onCancel from `benchmarking` only
 ```
 
 The payload is `{ runId }` alone — company name, domain, processor and upload path are read from the row, so a retry or escalation re-run always sees current values. `error` is internal-facing and no read path selects it.
@@ -100,17 +116,18 @@ The working statuses have a task inside them, but the task's hooks do not cover 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
 - `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `trigger_run_id` (the Trigger.dev run currently responsible for the row, written inside each claim), `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup. Partial indexes on `(created_at)` for `queued` rows and for working-status rows serve the two sweepers' scans.
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
+- `benchmarks` — one row per run (`run_id` unique, cascade): `rate_metric` (`TRIR`|`LTIFR`|null), `peer_count`, `rank`, `verdict`, `maturity_label` (enum `pathological`…`generative`, nullable), `maturity_rationale`, `per_metric_comparison` jsonb (`schema_version`, `rate_metric`, `company` rates, `peers[]` with `comparable`, `references`, `industry`), `parallel_run_id`. Owner-select through the run; the read layer re-derives rank from `peers[]`.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
 - `replace_extracted_kpis(p_run_id, p_kpis jsonb) returns integer` (`20260821163842`) — stage 2's only KPI write: deletes the run's `origin <> 'client'` rows and inserts the given rows for metrics no client row holds, in one transaction. Client rows keep their `id`/`created_at` across retries. Same privilege model.
 
-Still to come (own tickets): `benchmarks`, `expert_matches`, `proposals`, `ehs_documents` (pgvector), Storage buckets for uploads and proposal PDFs.
+Still to come (own tickets): `expert_matches`, `proposals`, `ehs_documents` (pgvector), Storage buckets for uploads and proposal PDFs.
 
 ## Auth / RLS
 

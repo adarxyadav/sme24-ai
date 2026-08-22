@@ -28,6 +28,7 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `RunStatusBadge` (components/dashboard/RunStatusBadge.tsx, server) — the run state's label as an outline Badge with its token; `status`. Shared by `RunList` and `RunStatusCard`.
 - `RunList` (components/dashboard/RunList.tsx, server) — table of the caller's runs (company + domain, status badge, started), each linking to its detail page; `runs`. Renders its own empty prompt with a New search link.
 - `IncidentCostCard` (components/dashboard/IncidentCostCard.tsx, server) — the annual incident cost: CHF range title, Category/Count/Cost rows, notes (lost-time unknown, unpriced counts, per-incident rates); `cost` (from `lib/portal/incident-cost#buildIncidentCost`, null renders "Cannot be estimated"). Completed runs only.
+- `BenchmarkCard` (components/dashboard/BenchmarkCard.tsx, server) — stage 3 on the report: "Rank n of N on TRIR" title (or no-comparable / insufficient copy), maturity outline Badge ("Emerging" for the bottom rung), verdict + rationale block, references `dl`, peer table with per-peer basis and "not ranked" marks; `benchmark` (from `lib/portal/benchmark#getRunBenchmark`). Completed runs with a row only.
 - `KpiLedger` (components/dashboard/KpiLedger.tsx, server) — the report table: metric + hint, value + unit (or Not disclosed), period, confidence badge, source link + excerpt or "Client-provided"; `rows` (from `lib/portal/ledger#buildLedger`).
 
 ## Pages of note
@@ -36,5 +37,5 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `/auth/confirm` (app/(auth)/auth/confirm/) — `MagicLinkConfirm`, same centered layout; noindex. Missing token → `/login?error=link_expired`.
 - `/` (app/page.tsx) — hero plus `SearchForm` for a signed-in visitor, or a sign-in link when signed out (the trigger route requires a session).
 - `/dashboard` (app/dashboard/page.tsx) — `RunList` of the caller's runs plus a New search link; `app/dashboard/layout.tsx` is the shared container and `app/dashboard/not-found.tsx` the not-found state in app chrome. noindex.
-- `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger` and `IncidentCostCard` when the run is completed; another user's run is not-found. noindex.
+- `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger`, `IncidentCostCard` and `BenchmarkCard` (when a benchmark row exists) when the run is completed; another user's run is not-found. noindex.
 - `/design` (app/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.

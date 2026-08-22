@@ -26,6 +26,10 @@ export const LOG_MESSAGES = {
   extractionFailed: "extraction failed",
   sweptStalled: "stalled run swept",
   livenessUnknown: "liveness unknown",
+  benchmarkingStarted: "benchmarking started",
+  peersGathered: "peers gathered",
+  benchmarkStored: "benchmark stored",
+  benchmarkingFailed: "benchmarking failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

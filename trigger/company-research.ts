@@ -11,6 +11,7 @@ import { researchCompany, type ProcessorTier } from "@/lib/parallel/client";
 import { createServiceClient } from "@/lib/supabase/service";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 import { kpiExtractionTask } from "@/trigger/kpi-extraction";
+import { peerBenchmarkingTask } from "@/trigger/peer-benchmarking";
 
 // Stage 1 — company research (pipeline-rules.md, Stages; t-004-spec.md).
 // Order is the contract's: client KPIs already exist (written by the trigger
@@ -295,6 +296,22 @@ export const companyResearchTask = task({
 
       if (extraction.ok) {
         webKpiCount = extraction.output.webKpiCount;
+
+        // Stage 3, same contract as the stage-2 handoff: its own hooks write
+        // the terminal, and a child failure never retries this task.
+        const benchmarking = await peerBenchmarkingTask.triggerAndWait(
+          { runId },
+          { region: "eu-central-1" },
+        );
+        if (!benchmarking.ok) {
+          await agentLog(service, {
+            runId,
+            stage: STAGE,
+            level: "warn",
+            message: LOG_MESSAGES.benchmarkingFailed,
+            payload: { child_run_id: benchmarking.id, error: String(benchmarking.error) },
+          });
+        }
       } else {
         await agentLog(service, {
           runId,
