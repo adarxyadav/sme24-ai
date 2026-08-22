@@ -2,10 +2,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
+import { IncidentCostCard } from "@/components/dashboard/IncidentCostCard";
 import { KpiLedger } from "@/components/dashboard/KpiLedger";
 import { RunProgress } from "@/components/dashboard/RunProgress";
 import { RunStatusCard } from "@/components/dashboard/RunStatusCard";
 import { buttonVariants } from "@/components/ui/button";
+import { buildIncidentCost } from "@/lib/portal/incident-cost";
 import { getRunKpis } from "@/lib/portal/kpis";
 import { buildLedger } from "@/lib/portal/ledger";
 import { runState } from "@/lib/portal/run-state";
@@ -25,7 +27,9 @@ export default async function RunPage({
   if (!run) notFound();
 
   const state = runState(run.status);
-  const ledger = state === "completed" ? buildLedger(await getRunKpis(run.id)) : null;
+  const kpis = state === "completed" ? await getRunKpis(run.id) : null;
+  const ledger = kpis ? buildLedger(kpis) : null;
+  const cost = kpis ? buildIncidentCost(kpis) : null;
   const live = state === "queued" || state === "in_progress";
 
   return (
@@ -45,6 +49,7 @@ export default async function RunPage({
           <KpiLedger rows={ledger} />
         </section>
       )}
+      {kpis && <IncidentCostCard cost={cost} />}
     </>
   );
 }

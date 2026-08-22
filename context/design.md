@@ -32,4 +32,14 @@ Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it
 
 ## Dashboard composition rules
 
-(not defined yet)
+### Derived figures (proposed — awaiting owner OK, built by T-016)
+
+A figure computed at display time from stored rows (`kpi-contract.md`, Derivation rules) is never dressed as a disclosure:
+
+- The value is prefixed with `≈` inside the same `tabular-nums` span as a disclosed value, same weight; no colour change — the approximation mark carries the meaning, not a token.
+- Directly under the value, one line in `text-xs text-muted-foreground` states the formula with the inputs' figures, e.g. `≈ 580` / `TRIR 1.13 × 512’000’000 h ÷ 1’000’000`. The formula names the metrics in the ledger's own labels.
+- The Confidence cell shows an outline `Badge` reading `derived` in `text-muted-foreground`, and the Source cell reads "Derived from &lt;inputs&gt;" — a derived row has no URL and no excerpt of its own.
+- A derived row renders only when every input is a stored row with a non-null value on the same base (per 1'000'000 hours); a disclosed count always replaces the derived one.
+- The incident-cost card uses a derived count exactly like a stored one and lists it under a "Derived counts used" note with the same formula line.
+
+Everything else in this section is still undefined.
