@@ -113,11 +113,16 @@ export const companyResearchTask = task({
       // stalled sweeper asks Trigger.dev about (t-011-spec.md D1), and writing
       // it in the claim itself leaves no window where the row is working with
       // no task to name.
+      //
+      // A retry is a new attempt of the same Trigger.dev run, so the row it
+      // claimed already carries its own id: `researching` + that id is this
+      // run re-entering after a throw, not a duplicate, and must win again
+      // (T-012). Any other run's id at `researching` still loses.
       const { data: claimed, error: claimError } = await service
         .from("analysis_runs")
         .update({ status: "researching", trigger_run_id: ctx.run.id })
         .eq("id", runId)
-        .eq("status", "queued")
+        .or(`status.eq.queued,and(status.eq.researching,trigger_run_id.eq.${ctx.run.id})`)
         .select("id")
         .maybeSingle<{ id: string }>();
 
@@ -140,6 +145,14 @@ export const companyResearchTask = task({
           observedStatus: run.status,
         });
         return { runId, skipped: true as const };
+      }
+    }
+
+    // Testing seam (t-012-spec.md): throw after the claim, so the retry must
+    // re-win it. `always` throws on every attempt to reach onFailure.
+    if (process.env.FORCE_STAGE1_RETRY) {
+      if (process.env.FORCE_STAGE1_RETRY === "always" || ctx.attempt.number === 1) {
+        throw new Error(`Forced stage 1 retry (FORCE_STAGE1_RETRY, attempt ${ctx.attempt.number})`);
       }
     }
 
