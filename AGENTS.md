@@ -27,7 +27,7 @@ Reference: `context/product/auth.md` (the auth contract), `context/product/kpi-c
 ## Rules that never change
 
 - No ticket, no work — build only what's in `context/tickets.md`. Every ticket names its check before work starts; the doer never edits what counts as done. New asks land under Later first — moving one up is an explicit trade.
-- After every change: one line in `context/log.md` (date — what — why, `deviated:` if it diverged from the ticket) and update `ui-registry.md`. Done tickets get a log line and leave `tickets.md`. When a change moves a rule or scope, update the owning context file.
+- After every change: one line in `context/log.md` (date — what — why, `deviated:` if it diverged from the ticket) and update `ui-registry.md` when a component is added, changed, or removed. Done tickets get a log line and leave `tickets.md`. When a change moves a rule or scope, update the owning context file.
 - Before any third-party library: read its section in `context/library-docs.md` for project-specific rules. (When library skills get installed, load the library's skill first, then the doc.)
 - If the same problem persists after one corrective prompt — stop and ask the user before trying again.
 - Never use hardcoded hex values or raw Tailwind color classes — only semantic token classes. Raw values live in `app/globals.css` alone.
