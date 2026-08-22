@@ -33,6 +33,10 @@ export const LOG_MESSAGES = {
   matchingStarted: "matching started",
   matchesStored: "matches stored",
   matchingFailed: "matching failed",
+  proposalStarted: "proposal started",
+  vaultRetrieved: "vault retrieved",
+  proposalStored: "proposal stored",
+  proposalFailed: "proposal failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";
