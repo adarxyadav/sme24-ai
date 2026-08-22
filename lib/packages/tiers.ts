@@ -50,7 +50,8 @@ export const TIERS: readonly Tier[] = [
     bestFor: "Fix systematically",
     format: "On-site · 5 days",
     coreValue: "Know what to fix and how",
-    scope: "Tier 2 scope plus selected standards (final wording pending — packages.md, Open)",
+    // packages.md, Open: the final wording is unconfirmed; the page says so.
+    scope: "Tier 2 scope plus selected standards",
     output: "Gap plan & timeline",
     outcome: "Clear action plan",
     priceChf: 10_000,
