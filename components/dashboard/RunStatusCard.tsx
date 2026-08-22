@@ -35,7 +35,7 @@ const BLOCKS: Record<RunState, StateBlock> = {
     icon: Loader,
     tone: "text-primary",
     title: "In progress",
-    body: "We’re researching public disclosures and extracting the safety KPIs with their sources. Refresh this page in a minute.",
+    body: "We’re researching public disclosures and extracting the safety KPIs with their sources. This usually takes a few minutes.",
   },
   completed: {
     icon: CheckCircle2,
