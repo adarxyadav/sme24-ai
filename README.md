@@ -14,7 +14,6 @@ Three user roles share the app — **clients**, **experts**, and **admins** — 
 - Tailwind CSS 4
 - Supabase (EU) — Postgres + RLS, Auth; migrations in `supabase/migrations/` via `npx supabase`
 - pnpm
-
 - Supabase Storage (private buckets `uploads`, `proposals`; signed URLs only) + pgvector (the EHS Vault)
 - Trigger.dev v4 — the five-stage background pipeline, every AI call (`trigger/`)
 - Vercel AI SDK + AI Gateway — one pipeline model, embeddings for the vault
