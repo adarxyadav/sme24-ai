@@ -21,9 +21,13 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `LoginCard` (components/portal/LoginCard.tsx, client) — the single sign-in card: Google button, separator, magic-link email form; `next` (validated path forwarded to both doors), `error` (human copy rendered as an alert). Swaps itself for a "Check your email" state after a successful send (`useActionState` on `requestMagicLink`).
 - `MagicLinkConfirm` (components/portal/MagicLinkConfirm.tsx, server) — "Almost there" card whose single button POSTs the token to `confirmMagicLink`; `tokenHash`, `next`. The token is spent on POST only, so a prefetched GET cannot consume it.
 - `AuthNav` (components/marketing/AuthNav.tsx, async server) — header auth controls: a Sign in link when signed out; "For experts"/"Expert area" link (by role), email + Log out form (calls `actions/auth#logout`) when signed in. Rendered inside `SiteHeader`'s nav.
+- `HowItWorks` (components/marketing/HowItWorks.tsx, server) — "How it works": the five pipeline stages as a numbered grid; no props.
+- `Features` (components/marketing/Features.tsx, server) — "What you get": five Card tiles naming the report's parts; no props.
+- `PackagesSection` (components/marketing/PackagesSection.tsx, server) — "Packages": the four tiers from `lib/packages/tiers.ts` as Cards (price excl. MWST or "On request", format/scope/output/outcome), one CTA, the tier-3 scope note; `ctaHref`, `ctaLabel`.
+- `ExpertsCta` (components/marketing/ExpertsCta.tsx, server) — "For experts" strip linking `/expert/apply`; no props.
 - `SiteShell` (components/marketing/SiteShell.tsx) — root page frame: SkipLink + SiteHeader + `<main id="main">` + SiteFooter; `children` fill main. Used by `app/layout.tsx`.
-- `SiteHeader` (components/marketing/SiteHeader.tsx) — top bar with brand link (ShieldCheck + "SME24") and a primary `<nav>` holding `AuthNav`; no props.
-- `SiteFooter` (components/marketing/SiteFooter.tsx) — copyright + tagline; no props.
+- `SiteHeader` (components/marketing/SiteHeader.tsx) — top bar with brand link (ShieldCheck + "SME24") and a primary `<nav>` holding a Packages anchor link and `AuthNav`; no props.
+- `SiteFooter` (components/marketing/SiteFooter.tsx) — copyright + tagline and a footer nav (How it works, Packages, For experts, Sign in); no props.
 - `SkipLink` (components/a11y/SkipLink.tsx) — visually hidden "Skip to content" link to `#main`, visible on focus.
 - `SearchForm` (components/portal/SearchForm.tsx, client) — the run intake: company name (required), optional website, optional safety-report PDF (uploaded first to `/api/uploads`, the returned path sent as `uploadedReportPath`), reporting period, and the canonical 7 KPI fields. POSTs JSON to `/api/runs` and navigates to the returned run. Blank KPI fields are omitted from `kpis[]`, never sent as empty strings. No props.
 - `ExpertProfileForm` (components/expert/ExpertProfileForm.tsx, client) — the expert application/edit form: name, headline, bio, years, checkbox groups from `lib/experts/catalogue` (competencies, sectors, languages, regions), availability radio; `useActionState` on `actions/expert#saveExpertProfile`, refreshes on save; `expert` (row or null), `submitLabel`.
@@ -48,7 +52,7 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 
 - `/login` (app/(auth)/login/) — `LoginCard`, centered by `app/(auth)/layout.tsx`; reads `next` and `error` from the query string.
 - `/auth/confirm` (app/(auth)/auth/confirm/) — `MagicLinkConfirm`, same centered layout; noindex. Missing token → `/login?error=link_expired`.
-- `/` (app/page.tsx) — hero plus `SearchForm` for a signed-in visitor, or a sign-in link when signed out (the trigger route requires a session).
+- `/` (app/page.tsx) — the marketing page: hero plus `SearchForm` for a signed-in visitor (sign-in link otherwise), then `HowItWorks`, `Features`, `PackagesSection`, `ExpertsCta`; own metadata title + description.
 - `/dashboard` (app/dashboard/page.tsx) — `RunList` of the caller's runs plus a New search link; `app/dashboard/layout.tsx` is the shared container and `app/dashboard/not-found.tsx` the not-found state in app chrome. noindex.
 - `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger`, `IncidentCostCard`, `BenchmarkCard`, `ProposalCard` and `ExpertMatchesCard` (the last three when a benchmark row exists) when the run is completed; another user's run is not-found. noindex.
 - `/expert/apply` (app/expert/apply/) — the application page: form for `expert_status = none`, `ExpertStatusCard` for pending/rejected; experts are redirected to `/expert`. noindex.
