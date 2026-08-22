@@ -39,6 +39,11 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `ProposalCard` (components/dashboard/ProposalCard.tsx, server) — stage 5 on the report: title, executive summary, "Download PDF" (60 s signed URL), recommended package box (tier, price excl. MWST, rationale), key risks, EHS Vault sources used or the "drafted without reference material" note; `proposal` (from `lib/portal/proposal#getRunProposal`).
 - `KpiLedger` (components/dashboard/KpiLedger.tsx, server) — the report table: metric + hint, value + unit (or Not disclosed), period, confidence badge, source link + excerpt, "Uploaded report" + excerpt, or "Client-provided"; `rows` (from `lib/portal/ledger#buildLedger`).
 
+- `AdminNav` (components/admin/AdminNav.tsx, server) — section links for the admin surface (Overview, Runs, Users, Experts); no props.
+- `AdminRunTable` (components/admin/AdminRunTable.tsx, server) — every run with owner email, `RunStatusBadge`, tier, started; `runs`, `emails` (Map user id → email).
+- `AgentLogTable` (components/admin/AgentLogTable.tsx, server) — a run's `agent_logs` in order: time, stage, level badge, message, raw payload; `logs`.
+- `ExpertDecisionForm` (components/admin/ExpertDecisionForm.tsx, client) — Approve / Reject buttons for one application (`useActionState` on `actions/admin#setExpertStatus`), or the settled status; `userId`, `status`.
+
 ## Pages of note
 
 - `/login` (app/(auth)/login/) — `LoginCard`, centered by `app/(auth)/layout.tsx`; reads `next` and `error` from the query string.
@@ -48,4 +53,5 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger`, `IncidentCostCard`, `BenchmarkCard`, `ProposalCard` and `ExpertMatchesCard` (the last three when a benchmark row exists) when the run is completed; another user's run is not-found. noindex.
 - `/expert/apply` (app/expert/apply/) — the application page: form for `expert_status = none`, `ExpertStatusCard` for pending/rejected; experts are redirected to `/expert`. noindex.
 - `/expert` (app/expert/page.tsx) — the expert surface (role `expert` only, others → `/expert/apply`): approved card, `ExpertMatchesList`, `ExpertProfileForm` prefilled. `app/expert/layout.tsx` is the container. noindex.
+- `/admin` … `/admin/runs`, `/admin/runs/[id]`, `/admin/users`, `/admin/experts` (app/admin/) — the admin surface, `requireAdmin()` on every page (non-admins → `/auth/redirect`); `app/admin/layout.tsx` holds `AdminNav`. noindex.
 - `/design` (app/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.
