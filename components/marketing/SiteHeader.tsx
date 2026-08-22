@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { AuthNav } from "@/components/marketing/AuthNav";
+import { buttonVariants } from "@/components/ui/button";
 
 export function SiteHeader() {
   return (
@@ -14,6 +15,9 @@ export function SiteHeader() {
           SME24
         </Link>
         <nav aria-label="Primary" className="flex items-center gap-2">
+          <Link href="/#packages" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+            Packages
+          </Link>
           <AuthNav />
         </nav>
       </div>
