@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { EhsOutput, ParallelBasis } from "@/lib/parallel/ehs-schema";
 import type { ProcessorTier } from "@/lib/parallel/client";
+import type { UploadRead } from "@/lib/upload/read";
 
 // Stage-1 cache lookup and the research envelope (t-004-spec.md D6, D8).
 // pipeline-rules.md, Caching: no cache table — a hit copies the research jsonb
@@ -22,6 +23,9 @@ export type ResearchEnvelope = {
   parallel_run_id: string | null;
   processor: ProcessorTier;
   cache?: { donor_run_id: string; age_days: number };
+  // Stage 1 step 4: the client's own report, read by the model. Never copied
+  // to another run by the cache (t-020-spec.md D2).
+  upload?: UploadRead;
 };
 
 export type CacheMiss = { hit: false; reason: "none" | "expired" | "tier" };
@@ -73,12 +77,16 @@ export async function findCachedResearch(
 
   // The run owns its own copy of the jsonb. Pointing at the donor by id instead
   // would let a donor's deletion empty a completed report.
+  // A donor's uploaded-report findings are that client's document; only the
+  // web research is shared.
+  const { upload: _donorUpload, ...shared } = data.research;
+  void _donorUpload;
   return {
     hit: true,
     donorRunId: data.id,
     ageDays,
     research: {
-      ...data.research,
+      ...shared,
       source: "cache",
       cache: { donor_run_id: data.id, age_days: ageDays },
     },

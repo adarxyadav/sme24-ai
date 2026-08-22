@@ -51,7 +51,7 @@ Each stage is a Trigger.dev task with its own retry; stages chain via `triggerAn
   1. Record client-supplied KPIs as `kpis` rows (`origin: 'client'`, `confidence: 'high'`) — before the cache check, so they exist even on a cache hit.
   2. Cache check (see Caching); on a hit, skip the Parallel call.
   3. On a miss: run Parallel web-first with an EHS output schema → structured findings incl. `sector` (NACE code, best-effort — stage 3's input) + `basis[]` citations + per-field confidence.
-  4. If the client uploaded a report (PDF only, v1 — already in Supabase Storage, path on the run row), read it with Claude; it overrides the web result for any field it covers.
+  4. If the client uploaded a report (PDF only, v1 — in the private `uploads` bucket, path on the run row, accepted by the trigger route only from the caller's own folder), read it with the pipeline model (file part + `Output.object`) into `research.upload`; stage 2 maps upload findings ahead of web findings, so they override the web result for any metric they cover and land as `origin: 'upload'` rows.
 - **Out:** `research` jsonb on the `analysis_runs` row (findings + provenance + sector) + any client `kpis` rows.
 - **Fail:** no web data and no upload → terminal `no_data`; the UI shows the standard no-data notice (copy lives in the read layer, nothing pipeline-generated).
 
@@ -100,7 +100,7 @@ Per-user Trigger.dev queue with concurrency 1 → one run at a time per user. Th
 
 ## Caching
 
-- **Cached:** stage-1 research only (the paid Parallel call). Stages 3–5 always regenerate; peer research is never cached.
+- **Cached:** stage-1 research only (the paid Parallel call) — and only its web part: a donor's `research.upload` (the client's own document) is never copied. Stages 3–5 always regenerate; peer research is never cached.
 - **Key:** `cache_key` = normalized `company_domain` if present, else normalized `company_name`. One implementation owns the rule — `lib/runs/cache-key.ts` — so the trigger route and stage 1 cannot drift apart. Normalize, in order: NFC-normalize, then trim, lowercase, collapse inner whitespace to single spaces. A domain additionally loses its scheme, a leading `www.`, any path, query or fragment, any port, and one trailing dot; it is parsed with `URL`, and a domain that will not parse falls back to the name branch. NFC comes first because the same company typed on macOS and on Windows otherwise yields two keys and silently misses cache.
 - **Mechanics:** no cache table — a hit copies the `research` jsonb from the newest completed run with the same `cache_key` no older than 30 days, then stage 2 runs normally on the copy (so the current run's client-KPI merge still applies). Shared across all clients: one company = one paid Parallel run per window.
 - **Tier rule:** an ultra run ignores cached *base* research and refreshes the cache with its fresh result; cached ultra research is reused as-is.

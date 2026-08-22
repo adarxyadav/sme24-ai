@@ -30,6 +30,7 @@ Project-specific rules per third-party library — the gotchas and conventions t
 - Dev gotcha: repeated broken-state sign-ins leave stale chunked `sb-…-auth-token.N` cookies on `localhost`; once the header total passes ~8 KB every request dies with HTTP 431 and Server Actions surface as "An unexpected response was received from the server". Clear the site's cookies (or use `127.0.0.1:3000`) rather than changing code.
 
 - **Storage.** One private bucket per artefact class, created in a migration (`insert into storage.buckets … public = false`, MIME allowlist). The pipeline uploads through the service role; the dashboard mints short signed URLs through the **session** client under a `storage.objects` select policy keyed on ownership (`proposals`: first path folder = a run the caller owns). Never a public bucket, never a service credential in a page (`t-019-spec.md` D5).
+- **Uploads.** Client documents go through `POST /api/uploads` (session verified, `%PDF-` magic bytes checked, service-role upload to `<user_id>/<uuid>.pdf`), never a browser Storage client; the bucket has no client policy at all and is read only by the pipeline (`t-020-spec.md` D1).
 - **pgvector.** `create extension if not exists vector with schema extensions`; columns are `extensions.vector(N)`, operators are written `operator(extensions.<=>)` inside `set search_path = ''` functions, HNSW with `vector_cosine_ops`. The embedding model and `N` are pinned together in `lib/vault/embedding.ts` — a model change is a migration.
 
 ## @react-pdf/renderer
@@ -46,6 +47,7 @@ Project-specific rules per third-party library — the gotchas and conventions t
 - Import from `ai` only: a plain `provider/model` string routes through the Gateway by default, reading `AI_GATEWAY_API_KEY` itself — `@ai-sdk/gateway` is not a dependency and `createGateway` is not called.
 - `maxRetries: 0` on every call: Trigger.dev owns retries (backoff ≥ 60s); the SDK's default of 2 would nest a second loop inside the first. Pass the task's `signal` as `abortSignal` so a cancelled run aborts the request.
 - No `temperature`/`top_p`: current Anthropic models reject sampling parameters alongside thinking; the schema is what constrains the answer.
+- PDF input: pass the bytes as a `file` content part (`mediaType: "application/pdf"`) in `messages`, with `Output.object` as usual; works through the Gateway on the current model (`t-020-spec.md`).
 - Embeddings go through the same Gateway (`embed` from `ai`, `openai/text-embedding-3-small`). The free-tier key rate-limits this model after a few calls in quick succession; Trigger.dev's ≥ 60 s backoff absorbs it in the pipeline (`t-019-spec.md` D6).
 - Model calls live in `lib/<stage>/` behind `server-only` and are invoked only from `trigger/` (AGENTS.md). The model emits judgments and references (e.g. a finding index), never retyped figures — code copies numbers from the cited source.
 

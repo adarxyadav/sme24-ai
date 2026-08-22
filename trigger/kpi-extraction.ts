@@ -1,6 +1,6 @@
 import { logger, task } from "@trigger.dev/sdk";
 import { agentLog, LOG_MESSAGES } from "@/lib/runs/agent-log";
-import { mapFindings, projectRows } from "@/lib/extraction/extract";
+import { mapFindings, projectRows, type CatalogueFinding } from "@/lib/extraction/extract";
 import type { ResearchEnvelope } from "@/lib/runs/research";
 import type { CanonicalMetric } from "@/lib/runs/metrics";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -90,7 +90,11 @@ export const kpiExtractionTask = task({
     // The form sends one reporting period for every client row (t-003), so the
     // first non-null value is the client's period.
     const clientPeriod = (clientKpis ?? []).find((row) => row.period)?.period ?? null;
-    const findings = claimed.research.output.findings;
+    // Upload findings first, tagged, then the web findings (t-020-spec.md D3).
+    const findings: CatalogueFinding[] = [
+      ...(claimed.research.upload?.findings ?? []).map((f) => ({ ...f, source_url: null, origin: "upload" as const })),
+      ...claimed.research.output.findings.map((f) => ({ ...f, origin: "web" as const })),
+    ];
 
     await agentLog(service, {
       runId,
@@ -99,6 +103,7 @@ export const kpiExtractionTask = task({
       payload: {
         attempt: ctx.attempt.number,
         findings: findings.length,
+        upload_findings: claimed.research.upload?.findings.length ?? 0,
         research_source: claimed.research.source,
         client_metrics: clientMetrics,
       },
