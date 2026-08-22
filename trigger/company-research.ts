@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 import { kpiExtractionTask } from "@/trigger/kpi-extraction";
 import { peerBenchmarkingTask } from "@/trigger/peer-benchmarking";
+import { expertMatchingTask } from "@/trigger/expert-matching";
 
 // Stage 1 — company research (pipeline-rules.md, Stages; t-004-spec.md).
 // Order is the contract's: client KPIs already exist (written by the trigger
@@ -303,7 +304,22 @@ export const companyResearchTask = task({
           { runId },
           { region: "eu-central-1" },
         );
-        if (!benchmarking.ok) {
+        if (benchmarking.ok) {
+          // Stage 4, same contract again.
+          const matching = await expertMatchingTask.triggerAndWait(
+            { runId },
+            { region: "eu-central-1" },
+          );
+          if (!matching.ok) {
+            await agentLog(service, {
+              runId,
+              stage: STAGE,
+              level: "warn",
+              message: LOG_MESSAGES.matchingFailed,
+              payload: { child_run_id: matching.id, error: String(matching.error) },
+            });
+          }
+        } else {
           await agentLog(service, {
             runId,
             stage: STAGE,
