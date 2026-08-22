@@ -27,7 +27,7 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 - Pipeline stages 4–5: expert matchmaking, proposal generation + EHS Vault.
 - Display-time derivations from `kpi-contract.md` (recordable / lost-time counts from rate × hours, hours from headcount) — the ledger shows stored rows only (`t-006-spec.md` D4); needs the ≈ + formula rendering rule designed first.
 - Packages: fill `context/product/packages.md`, then Stripe Checkout with MWST and the retainer contact form.
-- Expert and admin surfaces.
+- Admin surface (runs, users, expert approval, agent_logs).
 - Post-report collection surface for the leading indicators and the client-only lagging four.
 - Base-processor escalation paths.
 - Uploaded report override (stage 1 step 4, scoped out of T-004 — `t-004-spec.md` D10): private Storage bucket, upload control on the search form, `uploaded_report_path` validated as owned by the caller in the trigger route, and a Claude PDF read that overrides the web result for any field it covers. *Check to be written by the repo owner before this moves up.*

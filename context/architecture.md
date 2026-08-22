@@ -4,7 +4,7 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 ## Surfaces
 
-Built so far: the marketing page with the search form (`/`), the auth pages, and the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger). Expert and admin surfaces are Later.
+Built so far: the marketing page with the search form (`/`), the auth pages, the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger, incident cost and benchmark), and the expert surface (`/expert/apply` application + status, `/expert` profile for approved experts — T-017). Admin surface is Later.
 
 **The read-layer boundary** (`t-006-spec.md` D1). Three tiers, each a directory, enforced by `no-restricted-imports` in `eslint.config.mjs` so `pnpm lint` fails on a crossing:
 
@@ -116,13 +116,14 @@ The working statuses have a task inside them, but the task's hooks do not cover 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
 - `analysis_runs` — one row per search: `user_id → auth.users`, `company_name`, `company_domain`, `status` (enum = the run state machine), `processor` (`base`|`ultra`, default ultra), `cache_key`, `uploaded_report_path`, `research` jsonb (stage-1 output), `error`, `trigger_run_id` (the Trigger.dev run currently responsible for the row, written inside each claim), `created_at`, `completed_at`. Partial index on `(cache_key, created_at)` for completed runs serves the stage-1 cache lookup. Partial indexes on `(created_at)` for `queued` rows and for working-status rows serve the two sweepers' scans.
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
 - `benchmarks` — one row per run (`run_id` unique, cascade): `rate_metric` (`TRIR`|`LTIFR`|null), `peer_count`, `rank`, `verdict`, `maturity_label` (enum `pathological`…`generative`, nullable), `maturity_rationale`, `per_metric_comparison` jsonb (`schema_version`, `rate_metric`, `company` rates, `peers[]` with `comparable`, `references`, `industry`), `parallel_run_id`. Owner-select through the run; the read layer re-derives rank from `peers[]`.
+- `experts` — one row per applicant (`user_id` unique, cascade): `full_name`, `headline`, `bio`, `competencies[]`, `sectors[]` (NACE sections), `languages[]`, `regions[]`, `years_experience`, `availability`, timestamps. Keys come from `lib/experts/catalogue.ts`. Owner-select only; written solely by `apply_as_expert(jsonb)` — `security definer`, keyed on `auth.uid()`, upserts the caller's row and moves `profiles.expert_status` `none -> pending` in one transaction (`execute` granted to `authenticated`). Approval (`role = expert`, `expert_status = approved`) is a service-role write.
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
 - `replace_extracted_kpis(p_run_id, p_kpis jsonb) returns integer` (`20260821163842`) — stage 2's only KPI write: deletes the run's `origin <> 'client'` rows and inserts the given rows for metrics no client row holds, in one transaction. Client rows keep their `id`/`created_at` across retries. Same privilege model.
@@ -146,6 +147,7 @@ Every request: `proxy.ts` → `lib/supabase/proxy.ts#updateSession` refreshes co
 
 RLS is the access boundary:
 
+- `experts`: `authenticated` may `select` its own row; no write grants — `apply_as_expert` is the one write path.
 - `profiles` — one row per `auth.users` row, created by the `handle_new_user` trigger (`security definer`, `set search_path = ''`, owned by `postgres`). `authenticated` may `select` its own row only; `insert`/`update`/`delete` are revoked, so `role` and `expert_status` change only through the service role. Every column is privileged today, which is why there is no column-level update grant yet.
 - `analysis_runs`: `authenticated` may `select` rows where `user_id = auth.uid()`.
 - `kpis`: `authenticated` may `select` rows whose run they own.
