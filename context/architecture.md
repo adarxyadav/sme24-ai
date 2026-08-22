@@ -14,7 +14,7 @@ Built so far: the marketing page with the search form (`/`), the auth pages, and
 | Read layer | `lib/portal/` | `lib/supabase/server.ts` (the session client), `lib/runs/metrics.ts` (the contract constants) |
 | Dashboard | `app/dashboard/`, `components/dashboard/` | `lib/portal/`, `lib/utils.ts`, `components/ui/` |
 
-The dashboard cannot reach a Supabase client, so "reads only through the read layer" is structural. The read layer selects explicit column lists that never include `error`, `research`, `cache_key`, `processor` or `uploaded_report_path`; RLS (below) is its only row filter — no `user_id` predicate anywhere, so another user's run is a zero-row result and the page renders not-found. `lib/portal/run-state.ts` maps the nine-value `run_status` enum onto five render states with an exhaustive `Record`; the `failed` state is fixed copy. No derivation from `kpi-contract.md` is computed yet (Later).
+The dashboard cannot reach a Supabase client, so "reads only through the read layer" is structural. The read layer selects explicit column lists that never include `error`, `research`, `cache_key`, `processor` or `uploaded_report_path`; RLS (below) is its only row filter — no `user_id` predicate anywhere, so another user's run is a zero-row result and the page renders not-found. `lib/portal/run-state.ts` maps the nine-value `run_status` enum onto five render states with an exhaustive `Record`; the `failed` state is fixed copy. No derivation from `kpi-contract.md` is computed yet (Later). The run page polls while a run is queued or in progress (`RunProgress`: `router.refresh()` every 5 s, re-running the same read-layer query — T-014); no realtime, no engine ids.
 
 ## Pipeline
 
