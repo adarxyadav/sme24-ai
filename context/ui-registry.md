@@ -11,18 +11,23 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `Separator` (components/ui/separator.tsx) — shadcn separator (pulled in by Field); `orientation`.
 - `Table` (components/ui/table.tsx) — shadcn table; slots `TableHeader`, `TableBody`, `TableFooter`, `TableRow`, `TableHead`, `TableCell`, `TableCaption`; scrolls horizontally inside its own wrapper.
 - `Badge` (components/ui/badge.tsx) — shadcn badge; `variant` default|secondary|destructive|outline|ghost|link, `asChild`. Status/confidence colour is a semantic text class on `outline`, never a new variant.
+- `Textarea` (components/ui/textarea.tsx) — shadcn textarea; native props.
+- `Checkbox` (components/ui/checkbox.tsx, client) — shadcn/Radix checkbox; with `name`/`value` it submits as a form field. Used via `FieldLabel` pairs.
+- `RadioGroup` (components/ui/radio-group.tsx, client) — shadcn/Radix radio group; `RadioGroup` (`name`, `defaultValue`) + `RadioGroupItem` (`value`).
 - `Button` (components/ui/button.tsx) — shadcn button; `variant` default|outline|secondary|ghost|destructive|link, `size` default|xs|sm|lg|icon|icon-xs|icon-sm|icon-lg, `asChild` to render a Link. `buttonVariants` exported for link-as-button.
 
 ## Composites
 
 - `LoginCard` (components/portal/LoginCard.tsx, client) — the single sign-in card: Google button, separator, magic-link email form; `next` (validated path forwarded to both doors), `error` (human copy rendered as an alert). Swaps itself for a "Check your email" state after a successful send (`useActionState` on `requestMagicLink`).
 - `MagicLinkConfirm` (components/portal/MagicLinkConfirm.tsx, server) — "Almost there" card whose single button POSTs the token to `confirmMagicLink`; `tokenHash`, `next`. The token is spent on POST only, so a prefetched GET cannot consume it.
-- `AuthNav` (components/marketing/AuthNav.tsx, async server) — header auth controls: a Sign in link when signed out, email + Log out form (calls `actions/auth#logout`) when signed in. Rendered inside `SiteHeader`'s nav.
+- `AuthNav` (components/marketing/AuthNav.tsx, async server) — header auth controls: a Sign in link when signed out; "For experts"/"Expert area" link (by role), email + Log out form (calls `actions/auth#logout`) when signed in. Rendered inside `SiteHeader`'s nav.
 - `SiteShell` (components/marketing/SiteShell.tsx) — root page frame: SkipLink + SiteHeader + `<main id="main">` + SiteFooter; `children` fill main. Used by `app/layout.tsx`.
 - `SiteHeader` (components/marketing/SiteHeader.tsx) — top bar with brand link (ShieldCheck + "SME24") and a primary `<nav>` holding `AuthNav`; no props.
 - `SiteFooter` (components/marketing/SiteFooter.tsx) — copyright + tagline; no props.
 - `SkipLink` (components/a11y/SkipLink.tsx) — visually hidden "Skip to content" link to `#main`, visible on focus.
 - `SearchForm` (components/portal/SearchForm.tsx, client) — the run intake: company name (required), optional website, reporting period, and the canonical 7 KPI fields. POSTs JSON to `/api/runs` and navigates to the returned run. Blank KPI fields are omitted from `kpis[]`, never sent as empty strings. No props.
+- `ExpertProfileForm` (components/expert/ExpertProfileForm.tsx, client) — the expert application/edit form: name, headline, bio, years, checkbox groups from `lib/experts/catalogue` (competencies, sectors, languages, regions), availability radio; `useActionState` on `actions/expert#saveExpertProfile`, refreshes on save; `expert` (row or null), `submitLabel`.
+- `ExpertStatusCard` (components/expert/ExpertStatusCard.tsx, server) — fixed copy per application status; `status` (pending|approved|rejected).
 - `RunStatusCard` (components/dashboard/RunStatusCard.tsx, server) — a run's company name, domain, `RunStatusBadge` and one of five state blocks (queued, in progress, completed, nothing public found, delayed) keyed on `lib/portal/run-state`; `run`. The failed block is fixed copy — it reads nothing but the status.
 - `RunProgress` (components/dashboard/RunProgress.tsx, client) — polls the run page while a run is queued or in progress: `router.refresh()` every 5 s re-renders the Server Component through the read layer; renders a one-line "updates automatically" note. Mounted by the run page only for live states; no props.
 - `RunStatusBadge` (components/dashboard/RunStatusBadge.tsx, server) — the run state's label as an outline Badge with its token; `status`. Shared by `RunList` and `RunStatusCard`.
@@ -38,4 +43,6 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `/` (app/page.tsx) — hero plus `SearchForm` for a signed-in visitor, or a sign-in link when signed out (the trigger route requires a session).
 - `/dashboard` (app/dashboard/page.tsx) — `RunList` of the caller's runs plus a New search link; `app/dashboard/layout.tsx` is the shared container and `app/dashboard/not-found.tsx` the not-found state in app chrome. noindex.
 - `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger`, `IncidentCostCard` and `BenchmarkCard` (when a benchmark row exists) when the run is completed; another user's run is not-found. noindex.
+- `/expert/apply` (app/expert/apply/) — the application page: form for `expert_status = none`, `ExpertStatusCard` for pending/rejected; experts are redirected to `/expert`. noindex.
+- `/expert` (app/expert/page.tsx) — the expert surface (role `expert` only, others → `/expert/apply`): approved card, client-matches placeholder, `ExpertProfileForm` prefilled. `app/expert/layout.tsx` is the container. noindex.
 - `/design` (app/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.

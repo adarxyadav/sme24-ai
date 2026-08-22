@@ -37,6 +37,7 @@ Identities with the same verified email auto-link to one user (Supabase default)
 - Same migration locks it: `authenticated` may `select` own row only; no `insert`/`delete`; `update` limited to non-privileged columns via column-level grant — `role` and `expert_status` change only through the service role (admin surface, Later).
 - A missing profile is a bug, not a state: the read helper logs it and returns "not signed in" semantics; it never fabricates a client profile.
 - Expert surface and expert RLS grants key on `role = 'expert'`, which is set by an admin on approval. `expert_status = 'pending'` routes a client to `/expert/apply` status view, never to the expert surface.
+- Applying is `apply_as_expert(jsonb)` — a `security definer` function keyed on `auth.uid()` that upserts the caller's `experts` row and moves `expert_status` `none -> pending` in one transaction. It is the only write path to `experts` for a user and the only non-service-role write to `profiles`; `approved`/`rejected` it never touches (t-017-spec.md D1).
 
 ## Landing
 
