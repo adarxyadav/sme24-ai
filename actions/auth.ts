@@ -28,6 +28,11 @@ export async function requestMagicLink(
   const parsed = emailSchema.safeParse(formData.get("email"));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
+  const captchaToken = formData.get("captchaToken");
+  if (typeof captchaToken !== "string" || captchaToken.length === 0) {
+    return { error: "Please complete the verification and try again." };
+  }
+
   const origin = await requestOrigin();
   const next = nextParam(formData);
   const supabase = await createClient();
@@ -35,6 +40,9 @@ export async function requestMagicLink(
     email: parsed.data,
     options: {
       emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(next)}`,
+      // Supabase verifies the Turnstile token against the project's secret;
+      // a missing or stale token is refused there, never trusted here.
+      captchaToken,
     },
   });
   if (error) {
@@ -42,7 +50,9 @@ export async function requestMagicLink(
       error:
         error.code === "over_email_send_rate_limit"
           ? "A link was sent recently. Wait a minute before requesting another."
-          : "We couldn't send the link. Please try again.",
+          : error.code === "captcha_failed"
+            ? "Verification failed. Please try again."
+            : "We couldn't send the link. Please try again.",
     };
   }
   return { sent: true };
