@@ -11,7 +11,7 @@ export async function AuthNav() {
   if (!current) {
     return (
       <Link href="/login" className={buttonVariants({ size: "sm" })}>
-        Sign in
+        Log in
       </Link>
     );
   }

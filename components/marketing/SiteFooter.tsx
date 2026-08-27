@@ -5,7 +5,7 @@ const LINKS = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#packages", label: "Packages" },
   { href: "/expert/apply", label: "For experts" },
-  { href: "/login", label: "Sign in" },
+  { href: "/login", label: "Log in" },
 ] as const;
 
 export function SiteFooter() {
