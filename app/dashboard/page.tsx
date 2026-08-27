@@ -6,18 +6,21 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// The dashboard's default page is the intake (T-034); the run list lives at
-// /dashboard/runs. The proxy gates this path on a session.
+// The dashboard's default page is the intake (T-034), composed as a centered
+// ask bar (T-037); the run list lives in the sidebar's Analyses group. The
+// proxy gates this path on a session.
 export default function NewSearchPage() {
   return (
-    <>
-      <header className="flex flex-col gap-1">
-        <h1 className="text-3xl font-medium tracking-tight">New search</h1>
+    <div className="flex flex-1 flex-col items-center justify-center gap-8">
+      <header className="flex flex-col items-center gap-1.5 text-center">
+        <h1 className="text-2xl font-medium tracking-tight sm:text-[1.65rem]">
+          Benchmark your safety performance
+        </h1>
         <p className="text-muted-foreground">
-          Start a free report from your company name.
+          Company name in, free report out. Figures optional.
         </p>
       </header>
       <SearchForm />
-    </>
+    </div>
   );
 }

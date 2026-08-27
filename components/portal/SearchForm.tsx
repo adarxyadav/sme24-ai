@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ArrowRight, Loader2, Paperclip, Plus, X } from "lucide-react";
 import {
   CANONICAL_METRICS,
   COUNT_METRICS,
@@ -10,13 +11,6 @@ import {
   type CanonicalMetric,
 } from "@/lib/runs/metrics";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Field,
   FieldDescription,
@@ -27,6 +21,7 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 type KpiPayload = { metric: CanonicalMetric; value: number };
 
@@ -47,10 +42,107 @@ function collectKpis(form: FormData): KpiPayload[] {
   return kpis;
 }
 
+// A quiet disclosure toggle in the composer's footer. The teal dot marks a
+// collapsed section that still holds typed values — nothing typed is lost.
+function DisclosureChip({
+  id,
+  label,
+  controls,
+  expanded,
+  filled,
+  onClick,
+}: {
+  id: string;
+  label: string;
+  controls: string;
+  expanded: boolean;
+  filled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      id={id}
+      type="button"
+      variant="ghost"
+      size="sm"
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onClick}
+      className={cn(
+        "rounded-full font-normal text-muted-foreground",
+        expanded && "bg-accent text-foreground",
+      )}
+    >
+      {filled && !expanded ? (
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+      ) : (
+        <Plus aria-hidden="true" className="size-3.5" />
+      )}
+      {label}
+    </Button>
+  );
+}
+
 export function SearchForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [websiteOpen, setWebsiteOpen] = useState(false);
+  const [figuresOpen, setFiguresOpen] = useState(false);
+  const [websiteFilled, setWebsiteFilled] = useState(false);
+  const [figuresFilled, setFiguresFilled] = useState(false);
+  const [attachedName, setAttachedName] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // The disclosures float over the page like a menu, so they close like one:
+  // Escape (focus returns to the chip) and any press outside the composer.
+  useEffect(() => {
+    if (!websiteOpen && !figuresOpen) return;
+    const chipId = websiteOpen ? "chip-website" : "chip-figures";
+    const close = () => {
+      setWebsiteOpen(false);
+      setFiguresOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      close();
+      document.getElementById(chipId)?.focus();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        formRef.current &&
+        event.target instanceof Node &&
+        !formRef.current.contains(event.target)
+      ) {
+        close();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [websiteOpen, figuresOpen]);
+
+  function toggleSection(section: "website" | "figures") {
+    const open = section === "website" ? websiteOpen : figuresOpen;
+    setWebsiteOpen(section === "website" && !open);
+    setFiguresOpen(section === "figures" && !open);
+    if (!open) {
+      requestAnimationFrame(() =>
+        document
+          .getElementById(section === "website" ? "companyDomain" : "reportingPeriod")
+          ?.focus(),
+      );
+    }
+  }
+
+  function removeAttachment() {
+    if (fileRef.current) fileRef.current.value = "";
+    setAttachedName(null);
+  }
 
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -132,56 +224,146 @@ export function SearchForm() {
   }
 
   return (
-    <Card className="w-full max-w-2xl">
-      <CardHeader>
-        <CardTitle>Benchmark your safety KPIs</CardTitle>
-        <CardDescription>
-          Your company name is enough. Add your own figures if you have them —
-          they override anything we find.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-8" noValidate={false}>
-          <FieldGroup>
-            <Field>
-              <FieldLabel htmlFor="companyName">Company name</FieldLabel>
-              <Input
-                id="companyName"
-                name="companyName"
-                required
-                maxLength={200}
-                autoComplete="organization"
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="companyDomain">Website</FieldLabel>
-              <Input
-                id="companyDomain"
-                name="companyDomain"
-                maxLength={253}
-                autoComplete="url"
-                placeholder="example.ch"
-              />
-              <FieldDescription>
-                Optional. Helps us find the right company.
-              </FieldDescription>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="report">Your latest safety report (PDF)</FieldLabel>
-              <Input id="report" name="report" type="file" accept="application/pdf" />
-              <FieldDescription>
-                Optional. Figures in your own report override what we find on the web. PDF, up to 20 MB; it never leaves our EU systems.
-              </FieldDescription>
-            </Field>
-          </FieldGroup>
+    <form
+      ref={formRef}
+      onSubmit={onSubmit}
+      className="flex w-full max-w-2xl flex-col gap-4"
+      noValidate={false}
+    >
+      <div className="relative rounded-xl border bg-card transition-shadow focus-within:border-input focus-within:ring-2 focus-within:ring-ring/30">
+        <input
+          name="companyName"
+          type="text"
+          required
+          maxLength={200}
+          autoComplete="organization"
+          autoFocus
+          aria-label="Company name"
+          placeholder="Company name"
+          className="w-full bg-transparent px-5 pt-4 pb-1 text-lg outline-none placeholder:text-muted-foreground"
+        />
 
+        {attachedName ? (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-1.5">
+            <span className="flex items-center gap-2 rounded-full border py-1 pr-1.5 pl-3 text-xs">
+              <Paperclip aria-hidden="true" className="size-3 text-muted-foreground" />
+              <span className="max-w-64 truncate">{attachedName}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Remove attached report"
+                onClick={removeAttachment}
+                className="size-5 rounded-full text-muted-foreground"
+              >
+                <X aria-hidden="true" className="size-3" />
+              </Button>
+            </span>
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-1 p-3 pt-2">
+          <input
+            ref={fileRef}
+            id="report"
+            name="report"
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            tabIndex={-1}
+            onChange={(event) =>
+              setAttachedName(event.currentTarget.files?.[0]?.name ?? null)
+            }
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Attach your latest safety report (PDF)"
+            onClick={() => fileRef.current?.click()}
+            className="rounded-full text-muted-foreground"
+          >
+            <Paperclip aria-hidden="true" className="size-4" />
+          </Button>
+          <DisclosureChip
+            id="chip-website"
+            label="Website"
+            controls="composer-website"
+            expanded={websiteOpen}
+            filled={websiteFilled}
+            onClick={() => toggleSection("website")}
+          />
+          <DisclosureChip
+            id="chip-figures"
+            label="Your figures"
+            controls="composer-figures"
+            expanded={figuresOpen}
+            filled={figuresFilled}
+            onClick={() => toggleSection("figures")}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            disabled={pending}
+            aria-label="Run the analysis"
+            className="ml-auto rounded-full"
+          >
+            {pending ? (
+              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+            ) : (
+              <ArrowRight aria-hidden="true" className="size-4" />
+            )}
+          </Button>
+        </div>
+
+        {/* Closed sections stay mounted so their typed values still submit;
+            open, they float below the bar — the composer itself never grows. */}
+        <div
+          id="composer-website"
+          hidden={!websiteOpen}
+          className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border bg-popover p-5 text-popover-foreground"
+        >
+          <Field
+            onInput={(event) =>
+              setWebsiteFilled(
+                event.currentTarget.querySelector("input")?.value.trim() !== "",
+              )
+            }
+          >
+            <FieldLabel htmlFor="companyDomain">Website</FieldLabel>
+            <Input
+              id="companyDomain"
+              name="companyDomain"
+              maxLength={253}
+              autoComplete="url"
+              placeholder="example.ch"
+            />
+            <FieldDescription>
+              Optional. Helps us find the right company.
+            </FieldDescription>
+          </Field>
+        </div>
+
+        <div
+          id="composer-figures"
+          hidden={!figuresOpen}
+          className="absolute inset-x-0 top-full z-20 mt-2 max-h-[min(26rem,60vh)] overflow-y-auto rounded-xl border bg-popover p-5 text-popover-foreground"
+          onInput={(event) =>
+            setFiguresFilled(
+              Array.from(event.currentTarget.querySelectorAll("input")).some(
+                (input) => input.value.trim() !== "",
+              ),
+            )
+          }
+        >
           <FieldSet>
             <FieldLegend>Your figures</FieldLegend>
             <FieldDescription>
-              All optional. Anything you leave blank, we research.
+              All optional. Anything you leave blank, we research. Your figures
+              override what we find.
             </FieldDescription>
             <FieldGroup>
-              <Field>
+              <Field className="sm:max-w-56">
                 <FieldLabel htmlFor="reportingPeriod">
                   Reporting period
                 </FieldLabel>
@@ -195,7 +377,7 @@ export function SearchForm() {
                   Applies to every figure below.
                 </FieldDescription>
               </Field>
-              <div className="grid gap-6 sm:grid-cols-2">
+              <div className="grid gap-5 sm:grid-cols-2">
                 {CANONICAL_METRICS.map((metric) => (
                   <Field key={metric}>
                     <FieldLabel htmlFor={metric}>
@@ -217,14 +399,14 @@ export function SearchForm() {
               </div>
             </FieldGroup>
           </FieldSet>
+        </div>
+      </div>
 
-          {error && <FieldError role="alert">{error}</FieldError>}
-
-          <Button type="submit" size="lg" disabled={pending}>
-            {pending ? "Starting…" : "Run the analysis"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+      {error && (
+        <FieldError role="alert" className="px-2">
+          {error}
+        </FieldError>
+      )}
+    </form>
   );
 }
