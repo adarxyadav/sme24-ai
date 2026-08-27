@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Paperclip, Plus, X } from "lucide-react";
+import { ArrowRight, Loader2, Paperclip, X } from "lucide-react";
 import {
   CANONICAL_METRICS,
   COUNT_METRICS,
@@ -11,6 +11,7 @@ import {
   type CanonicalMetric,
 } from "@/lib/runs/metrics";
 import { Button } from "@/components/ui/button";
+import { DisclosureChip } from "@/components/portal/DisclosureChip";
 import {
   Field,
   FieldDescription,
@@ -21,7 +22,6 @@ import {
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 
 type KpiPayload = { metric: CanonicalMetric; value: number };
 
@@ -42,47 +42,6 @@ function collectKpis(form: FormData): KpiPayload[] {
   return kpis;
 }
 
-// A quiet disclosure toggle in the composer's footer. The teal dot marks a
-// collapsed section that still holds typed values — nothing typed is lost.
-function DisclosureChip({
-  id,
-  label,
-  controls,
-  expanded,
-  filled,
-  onClick,
-}: {
-  id: string;
-  label: string;
-  controls: string;
-  expanded: boolean;
-  filled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      id={id}
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onClick}
-      className={cn(
-        "rounded-full font-normal text-muted-foreground",
-        expanded && "bg-accent text-foreground",
-      )}
-    >
-      {filled && !expanded ? (
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-      ) : (
-        <Plus aria-hidden="true" className="size-3.5" />
-      )}
-      {label}
-    </Button>
-  );
-}
-
 export function SearchForm() {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -97,9 +56,19 @@ export function SearchForm() {
 
   // The disclosures float over the page like a menu, so they close like one:
   // Escape (focus returns to the chip) and any press outside the composer.
+  // The open panel is also fitted to the viewport — max-height measured from
+  // its top edge to the fold — so it can never clip past the screen.
   useEffect(() => {
     if (!websiteOpen && !figuresOpen) return;
     const chipId = websiteOpen ? "chip-website" : "chip-figures";
+    const sectionId = websiteOpen ? "composer-website" : "composer-figures";
+    const fit = () => {
+      const panel = document.getElementById(sectionId);
+      if (!panel) return;
+      const room = window.innerHeight - panel.getBoundingClientRect().top - 16;
+      panel.style.maxHeight = `${Math.min(416, Math.max(160, room))}px`;
+    };
+    fit();
     const close = () => {
       setWebsiteOpen(false);
       setFiguresOpen(false);
@@ -120,9 +89,11 @@ export function SearchForm() {
     };
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", fit);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", fit);
     };
   }, [websiteOpen, figuresOpen]);
 
@@ -321,7 +292,7 @@ export function SearchForm() {
         <div
           id="composer-website"
           hidden={!websiteOpen}
-          className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border bg-popover p-5 text-popover-foreground"
+          className="absolute inset-x-0 top-full z-20 mt-2 overflow-y-auto rounded-xl border bg-popover p-5 text-popover-foreground"
         >
           <Field
             onInput={(event) =>
