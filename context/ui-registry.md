@@ -15,6 +15,10 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `Checkbox` (components/ui/checkbox.tsx, client) — shadcn/Radix checkbox; with `name`/`value` it submits as a form field. Used via `FieldLabel` pairs.
 - `RadioGroup` (components/ui/radio-group.tsx, client) — shadcn/Radix radio group; `RadioGroup` (`name`, `defaultValue`) + `RadioGroupItem` (`value`).
 - `Button` (components/ui/button.tsx) — shadcn button; `variant` default|outline|secondary|ghost|destructive|link, `size` default|xs|sm|lg|icon|icon-xs|icon-sm|icon-lg, `asChild` to render a Link. `buttonVariants` exported for link-as-button.
+- `Sidebar` (components/ui/sidebar.tsx, client) — shadcn sidebar family: `SidebarProvider` (cookie-persisted state, sheet below `md`), `Sidebar` (offcanvas collapsible), `SidebarHeader`/`SidebarContent`/`SidebarFooter`, `SidebarGroup` + `SidebarGroupContent`, `SidebarMenu`/`SidebarMenuItem`/`SidebarMenuButton` (`isActive`, `asChild`), `SidebarInset` (renders `<main>`), `SidebarTrigger` (sr-only label); styled by the `sidebar-*` tokens.
+- `Sheet` (components/ui/sheet.tsx, client) — shadcn/Radix sheet dialog; pulled in as the Sidebar's mobile mode. `side` top|right|bottom|left.
+- `Skeleton` (components/ui/skeleton.tsx) — shadcn loading placeholder; pulled in with Sidebar, unused elsewhere yet.
+- `Tooltip` (components/ui/tooltip.tsx, client) — shadcn/Radix tooltip (`Tooltip`, `TooltipTrigger`, `TooltipContent`, `TooltipProvider` — not self-providing); pulled in with Sidebar, used only by `SidebarMenuButton`'s `tooltip` prop (icon-collapse mode, which we don't run).
 
 ## Composites
 
@@ -26,8 +30,8 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `Features` (components/marketing/Features.tsx, server) — "What you get": five Card tiles naming the report's parts; no props.
 - `PackagesSection` (components/marketing/PackagesSection.tsx, server) — "Packages": the four tiers from `lib/packages/tiers.ts` as Cards (price excl. MWST or "On request", format/scope/output/outcome), one CTA, the tier-3 scope note; `ctaHref`, `ctaLabel`.
 - `ExpertsCta` (components/marketing/ExpertsCta.tsx, server) — "For experts" strip linking `/expert/apply`; no props.
-- `SiteShell` (components/marketing/SiteShell.tsx) — root page frame: SkipLink + SiteHeader + `<main id="main">` + SiteFooter; `children` fill main. Used by `app/layout.tsx`.
-- `ThemeProvider` (components/marketing/ThemeProvider.tsx, client) — next-themes provider wrapping `SiteShell` in the root layout: class-based dark mode, light default, system optional; `children`.
+- `SiteShell` (components/marketing/SiteShell.tsx) — page frame for every non-dashboard surface: SkipLink + SiteHeader + `<main id="main">` + SiteFooter; `children` fill main. Used by `app/(site)/layout.tsx`.
+- `ThemeProvider` (components/marketing/ThemeProvider.tsx, client) — next-themes provider in the root layout: class-based dark mode, light default, system optional; `children`.
 - `ThemeToggle` (components/marketing/ThemeToggle.tsx, client) — light / dark / system segmented control (icon Buttons with `aria-pressed`, mounted guard); rendered in `SiteFooter`; no props.
 - `SiteHeader` (components/marketing/SiteHeader.tsx) — top bar inside `AutoHideHeader`: brand link (`BrandMark`, `aria-label` on the link) left, centered primary `<nav>` (How it works / Expert network / Packages anchors, hidden below `md` — the footer nav is the mobile path), `AuthNav` right; no props.
 - `AutoHideHeader` (components/marketing/AutoHideHeader.tsx, client) — sticky `<header>` that hides on scroll down and reappears on scroll up (always shown near the top, revealed by keyboard focus, `motion-reduce` drops the transition); `children` fill it, so server content passes through.
@@ -37,6 +41,8 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 - `ExpertProfileForm` (components/expert/ExpertProfileForm.tsx, client) — the expert application/edit form: name, headline, bio, years, checkbox groups from `lib/experts/catalogue` (competencies, sectors, languages, regions), availability radio; `useActionState` on `actions/expert#saveExpertProfile`, refreshes on save; `expert` (row or null), `submitLabel`.
 - `ExpertMatchesList` (components/expert/ExpertMatchesList.tsx, server) — the expert's client matches: company, rank, date table or "No matches yet"; `matches` (from `lib/experts/read#getOwnMatches`).
 - `ExpertStatusCard` (components/expert/ExpertStatusCard.tsx, server) — fixed copy per application status; `status` (pending|approved|rejected).
+- `DashboardShell` (components/dashboard/DashboardShell.tsx, server) — the dashboard's own chrome (T-033), replacing `SiteShell` on `/dashboard`: `SidebarProvider` + `SkipLink`, sidebar (brand link, `DashboardNav`, footer with `ThemeToggle` + email + Log out form), `SidebarInset` as `main#main` with a slim `SidebarTrigger` top bar and a `max-w-5xl` content column; `email`, `role`, `children`.
+- `DashboardNav` (components/dashboard/DashboardNav.tsx, client) — the sidebar menu: Your analyses (`/dashboard`), New search (`/`), plus Expert area (`/expert`) for role expert or Admin (`/admin`) for role admin; active by `usePathname` prefix match, closes the mobile sheet on click; `role`.
 - `RunStatusCard` (components/dashboard/RunStatusCard.tsx, server) — a run's company name, domain, `RunStatusBadge` and one of five state blocks (queued, in progress, completed, nothing public found, delayed) keyed on `lib/portal/run-state`; `run`. The failed block is fixed copy — it reads nothing but the status.
 - `RunProgress` (components/dashboard/RunProgress.tsx, client) — polls the run page while a run is queued or in progress: `router.refresh()` every 5 s re-renders the Server Component through the read layer; renders a one-line "updates automatically" note. Mounted by the run page only for live states; no props.
 - `RunStatusBadge` (components/dashboard/RunStatusBadge.tsx, server) — the run state's label as an outline Badge with its token; `status`. Shared by `RunList` and `RunStatusCard`.
@@ -54,12 +60,13 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 
 ## Pages of note
 
-- `/login` (app/(auth)/login/) — `LoginCard`, centered by `app/(auth)/layout.tsx`; reads `next` and `error` from the query string.
-- `/auth/confirm` (app/(auth)/auth/confirm/) — `MagicLinkConfirm`, same centered layout; noindex. Missing token → `/login?error=link_expired`.
-- `/` (app/page.tsx) — the marketing page: hero plus `SearchForm` for a signed-in visitor (sign-in link otherwise), then `HowItWorks`, `Features`, `PackagesSection`, `ExpertsCta`; own metadata title + description.
-- `/dashboard` (app/dashboard/page.tsx) — `RunList` of the caller's runs plus a New search link; `app/dashboard/layout.tsx` is the shared container and `app/dashboard/not-found.tsx` the not-found state in app chrome. noindex.
+- Chrome split (T-033): `app/(site)/layout.tsx` wraps the marketing, auth, expert, admin and design routes in `SiteShell`; the root layout carries only fonts + `ThemeProvider`; `/dashboard` renders in `DashboardShell` instead.
+- `/login` (app/(site)/(auth)/login/) — `LoginCard`, centered by `app/(site)/(auth)/layout.tsx`; reads `next` and `error` from the query string.
+- `/auth/confirm` (app/(site)/(auth)/auth/confirm/) — `MagicLinkConfirm`, same centered layout; noindex. Missing token → `/login?error=link_expired`.
+- `/` (app/(site)/page.tsx) — the marketing page: hero plus `SearchForm` for a signed-in visitor (sign-in link otherwise), then `HowItWorks`, `Features`, `PackagesSection`, `ExpertsCta`; own metadata title + description.
+- `/dashboard` (app/dashboard/page.tsx) — `RunList` of the caller's runs plus a New search link; `app/dashboard/layout.tsx` reads `getUser` and mounts `DashboardShell`, `app/dashboard/not-found.tsx` is the not-found state in app chrome. noindex.
 - `/dashboard/runs/[id]` (app/dashboard/runs/[id]/) — `RunStatusCard` for a run the caller owns, `RunProgress` while it is queued or in progress, plus `KpiLedger`, `IncidentCostCard`, `BenchmarkCard`, `ProposalCard` and `ExpertMatchesCard` (the last three when a benchmark row exists) when the run is completed; another user's run is not-found. noindex.
-- `/expert/apply` (app/expert/apply/) — the application page: form for `expert_status = none`, `ExpertStatusCard` for pending/rejected; experts are redirected to `/expert`. noindex.
-- `/expert` (app/expert/page.tsx) — the expert surface (role `expert` only, others → `/expert/apply`): approved card, `ExpertMatchesList`, `ExpertProfileForm` prefilled. `app/expert/layout.tsx` is the container. noindex.
-- `/admin` … `/admin/runs`, `/admin/runs/[id]`, `/admin/users`, `/admin/experts` (app/admin/) — the admin surface, `requireAdmin()` on every page (non-admins → `/auth/redirect`); `app/admin/layout.tsx` holds `AdminNav`. noindex.
-- `/design` (app/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.
+- `/expert/apply` (app/(site)/expert/apply/) — the application page: form for `expert_status = none`, `ExpertStatusCard` for pending/rejected; experts are redirected to `/expert`. noindex.
+- `/expert` (app/(site)/expert/page.tsx) — the expert surface (role `expert` only, others → `/expert/apply`): approved card, `ExpertMatchesList`, `ExpertProfileForm` prefilled. `app/(site)/expert/layout.tsx` is the container. noindex.
+- `/admin` … `/admin/runs`, `/admin/runs/[id]`, `/admin/users`, `/admin/experts` (app/(site)/admin/) — the admin surface, `requireAdmin()` on every page (non-admins → `/auth/redirect`); `app/(site)/admin/layout.tsx` holds `AdminNav`. noindex.
+- `/design` (app/(site)/design/page.tsx) — design-system reference: every token pair, lines, chart ramp, radius, type scale, Button variants × sizes. Unlinked; noindex. Update it whenever a token or Button variant changes.
