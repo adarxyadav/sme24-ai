@@ -5,6 +5,7 @@ import { CANONICAL_METRICS, type CanonicalMetric } from "@/lib/runs/metrics";
 import { cacheKey } from "@/lib/runs/cache-key";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { ownsUploadPath, UPLOADS_BUCKET } from "@/lib/upload/bucket";
 import { agentLog, LOG_MESSAGES } from "@/lib/runs/agent-log";
 import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 // Type-only, and deliberately so: it types the payload without evaluating the
@@ -54,6 +55,7 @@ const bodySchema = z
     companyDomain: z.string().trim().max(253).optional(),
     reportingPeriod: z.string().trim().max(100).optional(),
     kpis: z.array(kpiSchema).max(CANONICAL_METRICS.length).optional(),
+    uploadedReportPath: z.string().max(200).optional(),
   })
   .strict();
 
@@ -83,7 +85,7 @@ export async function POST(request: NextRequest) {
 
   const parsed = bodySchema.safeParse(payload);
   if (!parsed.success) return fail(INVALID, 400);
-  const { companyName, companyDomain, reportingPeriod, kpis } = parsed.data;
+  const { companyName, companyDomain, reportingPeriod, kpis, uploadedReportPath } = parsed.data;
 
   // A duplicate metric is only reachable from a hand-rolled POST; the form
   // cannot produce one. Compared as a set so the array carries each metric once.
@@ -92,9 +94,22 @@ export async function POST(request: NextRequest) {
 
   const key = cacheKey({ companyName, companyDomain });
 
+  const service = createServiceClient();
+
+  // An uploaded report is accepted only from the caller's own folder and only
+  // if the object exists — the path is client input (pipeline-rules.md,
+  // Trigger route; t-020-spec.md D1).
+  if (uploadedReportPath !== undefined) {
+    if (!ownsUploadPath(userId, uploadedReportPath)) return fail(INVALID, 400);
+    const [folder, name] = uploadedReportPath.split("/");
+    const { data: objects, error: listError } = await service.storage
+      .from(UPLOADS_BUCKET)
+      .list(folder, { search: name, limit: 1 });
+    if (listError || !objects?.some((object) => object.name === name)) return fail(INVALID, 400);
+  }
+
   // Both writes in one transaction (t-003-spec.md D9): a run whose client KPIs
   // went missing would be researched as though the client supplied nothing.
-  const service = createServiceClient();
   const { data: runId, error } = await service.rpc("create_analysis_run", {
     p_user_id: userId,
     p_company_name: companyName,
@@ -105,6 +120,7 @@ export async function POST(request: NextRequest) {
       value: kpi.value,
       period: reportingPeriod ?? null,
     })),
+    p_uploaded_report_path: uploadedReportPath ?? null,
   });
 
   if (error || typeof runId !== "string") {
