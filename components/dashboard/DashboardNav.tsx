@@ -15,11 +15,14 @@ type NavItem = {
   title: string;
   href: string;
   icon: typeof LayoutDashboard;
+  exact?: boolean;
 };
 
+// New search is the dashboard's default page (T-034), so it matches exactly;
+// Your analyses stays active across the run detail pages by prefix.
 const BASE_ITEMS: NavItem[] = [
-  { title: "Your analyses", href: "/dashboard", icon: LayoutDashboard },
-  { title: "New search", href: "/", icon: Plus },
+  { title: "New search", href: "/dashboard", icon: Plus, exact: true },
+  { title: "Your analyses", href: "/dashboard/runs", icon: LayoutDashboard },
 ];
 
 // Only roles that own a surface get its link; a client sees neither.
@@ -41,7 +44,10 @@ export function DashboardNav({ role }: { role: UserRole }) {
           <SidebarMenuButton
             asChild
             isActive={
-              pathname === item.href || pathname.startsWith(`${item.href}/`)
+              item.exact
+                ? pathname === item.href
+                : pathname === item.href ||
+                  pathname.startsWith(`${item.href}/`)
             }
           >
             <Link href={item.href} onClick={() => setOpenMobile(false)}>

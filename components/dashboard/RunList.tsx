@@ -24,7 +24,7 @@ export function RunList({ runs }: { runs: Run[] }) {
         <p className="text-muted-foreground">
           No analyses yet. Start one with your company name.
         </p>
-        <Link href="/" className={buttonVariants()}>
+        <Link href="/dashboard" className={buttonVariants()}>
           New search
         </Link>
       </div>
