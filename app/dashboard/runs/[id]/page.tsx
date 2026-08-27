@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { ArrowLeft } from "lucide-react";
 import { KpiLedger } from "@/components/dashboard/KpiLedger";
+import { RunProgress } from "@/components/dashboard/RunProgress";
 import { RunStatusCard } from "@/components/dashboard/RunStatusCard";
 import { buttonVariants } from "@/components/ui/button";
 import { getRunKpis } from "@/lib/portal/kpis";
@@ -23,10 +24,9 @@ export default async function RunPage({
   const run = await getRunById(id);
   if (!run) notFound();
 
-  const ledger =
-    runState(run.status) === "completed"
-      ? buildLedger(await getRunKpis(run.id))
-      : null;
+  const state = runState(run.status);
+  const ledger = state === "completed" ? buildLedger(await getRunKpis(run.id)) : null;
+  const live = state === "queued" || state === "in_progress";
 
   return (
     <>
@@ -38,6 +38,7 @@ export default async function RunPage({
         Your analyses
       </Link>
       <RunStatusCard run={run} />
+      {live && <RunProgress />}
       {ledger && (
         <section className="flex flex-col gap-3">
           <h2 className="text-xl font-medium tracking-tight">KPI ledger</h2>
