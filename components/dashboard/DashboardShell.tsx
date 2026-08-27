@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { LogOut } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { SkipLink } from "@/components/a11y/SkipLink";
@@ -25,7 +26,7 @@ import {
 import type { UserRole } from "@/lib/auth/get-user";
 
 // The dashboard's own chrome: replaces SiteShell on /dashboard (T-033).
-export function DashboardShell({
+export async function DashboardShell({
   email,
   role,
   runs,
@@ -36,8 +37,13 @@ export function DashboardShell({
   runs: AnalysisNavItem[];
   children: React.ReactNode;
 }) {
+  // SidebarProvider writes sidebar_state on toggle but never reads it back —
+  // restoring the collapse across loads is the server's job (shadcn contract).
+  const cookieStore = await cookies();
+  const defaultOpen = cookieStore.get("sidebar_state")?.value !== "false";
+
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={defaultOpen}>
       <SkipLink />
       <Sidebar>
         <SidebarHeader>
