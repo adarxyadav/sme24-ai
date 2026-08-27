@@ -4,7 +4,7 @@ Surfaces, pipeline, data, auth/RLS. Stub — fill each section as the correspond
 
 ## Surfaces
 
-Built so far: the marketing page with the search form (`/`), the auth pages, the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger, incident cost and benchmark), the expert surface (`/expert/apply` application + status, `/expert` profile + matches for approved experts — T-017/T-018), and the admin surface (`/admin` overview, runs + agent log detail, users, expert approval — T-022; reads through RLS admin policies via `lib/admin/read.ts`, the one write in `actions/admin.ts`).
+Built so far: the marketing page (`/`: hero + search form, how it works, what you get, packages, for experts — T-023), the auth pages, the client dashboard (`/dashboard` run list, `/dashboard/runs/[id]` run detail with the KPI ledger, incident cost and benchmark), the expert surface (`/expert/apply` application + status, `/expert` profile + matches for approved experts — T-017/T-018), and the admin surface (`/admin` overview, runs + agent log detail, users, expert approval — T-022; reads through RLS admin policies via `lib/admin/read.ts`, the one write in `actions/admin.ts`).
 
 **The read-layer boundary** (`t-006-spec.md` D1). Three tiers, each a directory, enforced by `no-restricted-imports` in `eslint.config.mjs` so `pnpm lint` fails on a crossing:
 
