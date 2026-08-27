@@ -1,4 +1,4 @@
-import { logger, task } from "@trigger.dev/sdk";
+import { logger, metadata, task } from "@trigger.dev/sdk";
 import { agentLog, LOG_MESSAGES } from "@/lib/runs/agent-log";
 import { judgeBenchmark } from "@/lib/benchmark/judge";
 import { benchmarkPeers } from "@/lib/parallel/client";
@@ -42,6 +42,15 @@ type KpiRow = {
   unit: string | null;
   period: string | null;
   origin: "web" | "upload" | "client";
+};
+
+// The stage's paid output, persisted as run metadata between the Parallel call
+// and the judge so a retried attempt never re-buys the call (T-027).
+type GatheredPeers = {
+  peers: PeerFinding[];
+  references: ReferenceFinding[];
+  parallel_run_id: string | null;
+  industry_notes: string | null;
 };
 
 function isRateMetric(metric: CanonicalMetric): metric is RateMetric {
@@ -128,53 +137,83 @@ export const peerBenchmarkingTask = task({
     // Testing seam (t-016-spec.md D5): the insufficient-data path without a
     // paid call.
     if (!process.env.FORCE_STAGE3_EMPTY) {
-      const gather = async (processor: "base" | "ultra") => {
-        // Peer research is never cached (pipeline-rules.md, Caching) and runs on
-        // the base processor by default (Escalation).
-        const result = await benchmarkPeers({
-          companyName: claimed.company_name,
-          naceCode: sector.nace_code,
-          naceLabel: sector.nace_label,
-          country: company.country,
-          headcount: company.headcount,
-          processor,
-          maxWaitSeconds: PARALLEL_MAX_WAIT_SECONDS,
-          signal,
-          onRunCreated: (id) =>
-            agentLog(service, {
-              runId,
-              stage: STAGE,
-              message: LOG_MESSAGES.parallelCreated,
-              payload: { parallel_run_id: id, processor },
-            }),
-        });
-        // Testing seam (t-021-spec.md D4): the base result carries no rate.
-        const output =
-          processor === "base" && process.env.FORCE_STAGE3_NO_RATES
-            ? { ...result.output, peers: result.output.peers.map((p) => ({ ...p, trir: null, ltifr: null })) }
-            : result.output;
-        return { ...result, output };
-      };
+      // Run metadata dies with the Trigger.dev run, so reuse is scoped to
+      // attempts of this run alone — peer research stays uncached across runs
+      // (pipeline-rules.md, Caching). Cast: metadata is untyped JSON and the
+      // only writer of this key is the set below.
+      const persisted = metadata.get("gathered") as GatheredPeers | undefined;
 
-      let result = await gather("base");
+      if (persisted) {
+        peers = persisted.peers;
+        references = persisted.references;
+        parallelRunId = persisted.parallel_run_id;
+        industryNotes = persisted.industry_notes;
 
-      // Escalation (pipeline-rules.md): no numeric peer TRIR or LTIFR on base
-      // -> retry the peer gathering once on ultra, logged.
-      const hasRate = (peersList: PeerFinding[]) => peersList.some((p) => p.trir !== null || p.ltifr !== null);
-      if (!hasRate(result.output.peers)) {
         await agentLog(service, {
           runId,
           stage: STAGE,
-          message: LOG_MESSAGES.escalation,
-          payload: { from: "base", to: "ultra", peers: result.output.peers.length, base_parallel_run_id: result.parallelRunId },
+          message: LOG_MESSAGES.peersReused,
+          payload: { attempt: ctx.attempt.number, peers: peers.length, parallel_run_id: parallelRunId },
         });
-        result = await gather("ultra");
-      }
+      } else {
+        const gather = async (processor: "base" | "ultra") => {
+          // Peer research is never cached (pipeline-rules.md, Caching) and runs on
+          // the base processor by default (Escalation).
+          const result = await benchmarkPeers({
+            companyName: claimed.company_name,
+            naceCode: sector.nace_code,
+            naceLabel: sector.nace_label,
+            country: company.country,
+            headcount: company.headcount,
+            processor,
+            maxWaitSeconds: PARALLEL_MAX_WAIT_SECONDS,
+            signal,
+            onRunCreated: (id) =>
+              agentLog(service, {
+                runId,
+                stage: STAGE,
+                message: LOG_MESSAGES.parallelCreated,
+                payload: { parallel_run_id: id, processor },
+              }),
+          });
+          // Testing seam (t-021-spec.md D4): the base result carries no rate.
+          const output =
+            processor === "base" && process.env.FORCE_STAGE3_NO_RATES
+              ? { ...result.output, peers: result.output.peers.map((p) => ({ ...p, trir: null, ltifr: null })) }
+              : result.output;
+          return { ...result, output };
+        };
 
-      peers = result.output.peers;
-      references = result.output.references;
-      parallelRunId = result.parallelRunId;
-      industryNotes = result.output.industry.notes;
+        let result = await gather("base");
+
+        // Escalation (pipeline-rules.md): no numeric peer TRIR or LTIFR on base
+        // -> retry the peer gathering once on ultra, logged.
+        const hasRate = (peersList: PeerFinding[]) => peersList.some((p) => p.trir !== null || p.ltifr !== null);
+        if (!hasRate(result.output.peers)) {
+          await agentLog(service, {
+            runId,
+            stage: STAGE,
+            message: LOG_MESSAGES.escalation,
+            payload: { from: "base", to: "ultra", peers: result.output.peers.length, base_parallel_run_id: result.parallelRunId },
+          });
+          result = await gather("ultra");
+        }
+
+        peers = result.output.peers;
+        references = result.output.references;
+        parallelRunId = result.parallelRunId;
+        industryNotes = result.output.industry.notes;
+
+        metadata.set("gathered", {
+          peers,
+          references,
+          parallel_run_id: parallelRunId,
+          industry_notes: industryNotes,
+        } satisfies GatheredPeers);
+        // The periodic background flush is not enough: the judge call right
+        // after is the very failure this write guards against.
+        await metadata.flush();
+      }
     }
 
     // A reference on another base can never be shown (comparability rules),
@@ -196,6 +235,12 @@ export const peerBenchmarkingTask = task({
         parallel_run_id: parallelRunId,
       },
     });
+
+    // Testing seam (t-027-spec.md): attempt 1 dies between the paid call and
+    // the judge.
+    if (process.env.FORCE_STAGE3_JUDGE_FAIL && ctx.attempt.number === 1) {
+      throw new Error("forced stage 3 judge failure (FORCE_STAGE3_JUDGE_FAIL)");
+    }
 
     // Neither peers nor references: the benchmark states insufficient data and
     // the run continues (pipeline-rules.md, Stage 3). No model call — there is
