@@ -8,7 +8,7 @@ Defined once in `app/globals.css` (shadcn CSS-variable scheme, OKLCH values). Co
 
 Direction: Perplexity's reading-room chrome — cream canvas, warm ink, one teal, no second accent (reference: shadcn.io/design/perplexity; Smith & Diction's "Scandinavian subway system" brief). Adapted, not copied: radius grammar stays shadcn's (a KPI ledger is not a search composer), and status colors exist because KPIs need them.
 
-Dark mode is system preference: the same `:root` variables are re-assigned under `@media (prefers-color-scheme: dark)`, so a component written with semantic classes is dark-ready by construction. No `.dark` class, no theme toggle, no `dark:` variants in app code (the few inside `components/ui/` primitives are shadcn's own and resolve against the same media query).
+Dark mode is class-based: the same `:root` variables are re-assigned under `.dark`, so a component written with semantic classes is dark-ready by construction. The class is managed by `next-themes` (`ThemeProvider` in the root layout: light is the default, system preference applies only when chosen) and switched by the footer's `ThemeToggle` — light / dark / system. No `dark:` variants in app code (the few inside `components/ui/` primitives are shadcn's own and resolve against the `.dark` custom variant).
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
