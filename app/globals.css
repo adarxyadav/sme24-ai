@@ -56,9 +56,9 @@
   /* Reference: Perplexity — cream canvas, warm ink, one teal. Values in OKLCH, hue ~85 = warm stone, ~203 = teal. */
   --background: oklch(0.989 0.003 49);
   --foreground: oklch(0.264 0.013 94);
-  --card: oklch(0.989 0.003 49);
+  --card: oklch(1 0 0);
   --card-foreground: oklch(0.264 0.013 94);
-  --popover: oklch(0.989 0.003 49);
+  --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.264 0.013 94);
   --primary: oklch(0.478 0.081 203);
   --primary-foreground: oklch(0.989 0.003 49);
@@ -85,7 +85,7 @@
   --sidebar-foreground: oklch(0.264 0.013 94);
   --sidebar-primary: oklch(0.264 0.013 94);
   --sidebar-primary-foreground: oklch(0.989 0.003 49);
-  --sidebar-accent: oklch(0.892 0.010 88);
+  --sidebar-accent: oklch(0.945 0.007 85);
   --sidebar-accent-foreground: oklch(0.264 0.013 94);
   --sidebar-border: oklch(0.892 0.010 88);
   --sidebar-ring: oklch(0.478 0.081 203 / 60%);

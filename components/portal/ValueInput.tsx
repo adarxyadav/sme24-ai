@@ -26,10 +26,8 @@ export function parseLocaleNumber(raw: string): number | null {
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
-// A Notion-style value cell: the cell is the control and its weight says its
-// state — fully ghost while empty (the placeholder alone marks the spot,
-// background only on hover), lifted to card once it holds a value, ring while
-// focused, darker border when `dirty` marks it for a Save.
+// A Notion-style value cell: visual weight carries the state, so filled rows
+// read apart from empty ones without extra chrome around the ledger.
 export function ValueInput({
   value,
   dirty = false,
@@ -53,7 +51,7 @@ export function ValueInput({
           ? "border-border bg-card shadow-xs"
           : "border-transparent bg-transparent hover:bg-muted",
         dirty && "border-foreground/40",
-        "focus:border-input focus:bg-card focus:ring-3 focus:ring-foreground/10",
+        "focus:border-ring focus:bg-card focus:ring-3 focus:ring-ring/50",
         className,
       )}
       {...props}
