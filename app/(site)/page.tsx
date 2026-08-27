@@ -4,7 +4,6 @@ import { ExpertsCta } from "@/components/marketing/ExpertsCta";
 import { Features } from "@/components/marketing/Features";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { PackagesSection } from "@/components/marketing/PackagesSection";
-import { SearchForm } from "@/components/portal/SearchForm";
 import { buttonVariants } from "@/components/ui/button";
 import { getUser } from "@/lib/auth/get-user";
 
@@ -16,7 +15,7 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const current = await getUser();
-  const ctaHref = current ? "#top" : "/login?next=/";
+  const ctaHref = current ? "/dashboard" : "/login?next=/dashboard";
   const ctaLabel = current ? "Start your free report" : "Sign in to run a search";
 
   return (
@@ -32,15 +31,11 @@ export default async function Home() {
             against Swiss peers and matches you with senior experts. Free.
           </p>
         </div>
-        {/* The trigger route requires a session, so signed-out visitors get the
-            door rather than a form that can only 401. */}
-        {current ? (
-          <SearchForm />
-        ) : (
-          <Link href="/login?next=/" className={buttonVariants({ size: "lg" })}>
-            Sign in to run a search
-          </Link>
-        )}
+        {/* The intake lives at /dashboard (T-034); the homepage only carries
+            the door to it. */}
+        <Link href={ctaHref} className={buttonVariants({ size: "lg" })}>
+          {ctaLabel}
+        </Link>
       </section>
       <HowItWorks />
       <Features />

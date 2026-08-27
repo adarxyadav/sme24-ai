@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { SiteShell } from "@/components/marketing/SiteShell";
 import { ThemeProvider } from "@/components/marketing/ThemeProvider";
 import "./globals.css";
 
@@ -28,9 +27,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col" suppressHydrationWarning>
-        <ThemeProvider>
-          <SiteShell>{children}</SiteShell>
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

@@ -42,4 +42,8 @@ A figure computed at display time from stored rows (`kpi-contract.md`, Derivatio
 - A derived row renders only when every input is a stored row with a non-null value on the same base (per 1'000'000 hours); a disclosed count always replaces the derived one.
 - The incident-cost card uses a derived count exactly like a stored one and lists it under a "Derived counts used" note with the same formula line.
 
+### Shell
+
+`/dashboard` renders inside `DashboardShell`, not `SiteShell` (T-033): a shadcn sidebar (offcanvas below `md`, collapse state in a cookie) plus a slim top bar carrying only the sidebar trigger; page content sits in a `max-w-5xl` column. Sidebar chrome uses the `sidebar-*` tokens exclusively — the active nav item is tonal (`sidebar-accent`), never teal. On this surface the sidebar footer owns the theme toggle, the account identity and Log out; `SiteFooter` does not render. The run history lives only in the sidebar's "Analyses" group, chat-history style (T-035) — one truncated company name per run, no status decoration; state belongs to the run page.
+
 Everything else in this section is still undefined.

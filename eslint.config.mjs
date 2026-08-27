@@ -27,12 +27,18 @@ const eslintConfig = defineConfig([
         {
           patterns: [
             {
+              // The shell (T-033) carries chrome, not report data: identity
+              // for email/role and the logout action are exempt like in every
+              // other surface's chrome; run data still flows through lib/portal/.
               group: [
                 "@/lib/*",
                 "!@/lib/portal",
                 "!@/lib/portal/*",
                 "!@/lib/utils",
+                "!@/lib/auth",
+                "!@/lib/auth/get-user",
                 "@/actions/*",
+                "!@/actions/auth",
                 "@supabase/*",
                 ...ENGINE,
               ],

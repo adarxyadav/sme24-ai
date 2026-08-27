@@ -1,11 +1,27 @@
-export default function DashboardLayout({
+import { redirect } from "next/navigation";
+import { DashboardShell } from "@/components/dashboard/DashboardShell";
+import { getUser } from "@/lib/auth/get-user";
+import { listRuns } from "@/lib/portal/runs";
+
+// The proxy gates this path on a session; getUser here only feeds the shell
+// (email, role) and catches the missing-profile edge as signed out.
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const current = await getUser();
+  if (!current) redirect(`/login?next=${encodeURIComponent("/dashboard")}`);
+
+  const runs = await listRuns();
+
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-12 sm:px-6">
+    <DashboardShell
+      email={current.user.email}
+      role={current.profile.role}
+      runs={runs.map((run) => ({ id: run.id, companyName: run.company_name }))}
+    >
       {children}
-    </section>
+    </DashboardShell>
   );
 }
