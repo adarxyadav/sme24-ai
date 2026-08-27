@@ -35,7 +35,14 @@ pnpm lint
 
 ## Deploy
 
-Not set up yet — the dev stack (`pnpm dev` + `npx trigger.dev@latest dev`) is the only running environment. This section fills in when the deploy ticket lands (Vercel EU + Trigger.dev prod).
+Production (since 2026-08-27, T-032):
+
+- **Web**: Vercel project `sme24-ai` — https://sme24-ai.vercel.app, functions in `fra1` (`vercel.json`), git-connected: every merge to `main` deploys production. Env (production): the Supabase URL + publishable + secret keys, the **prod** `TRIGGER_SECRET_KEY`, and the Turnstile **test** site key (real keys are a launch item).
+- **Pipeline**: Trigger.dev **prod** environment of project `sme24-ehs` — `npx trigger.dev@latest deploy --env-file .env.local` from the repo. The `syncEnvVars` extension in `trigger.config.ts` pushes everything the tasks read (Supabase URL + secret key, `PARALLEL_API_KEY`, `AI_GATEWAY_API_KEY`) from the deployer's env file on every deploy.
+- **Auth**: Supabase site URL is the production domain; the redirect allowlist holds `https://sme24-ai.vercel.app/auth/**` and keeps `http://localhost:3000/auth/**` for the dev stack.
+- Dev stack unchanged: `pnpm dev` + `npx trigger.dev@latest dev` against the same Supabase project.
+
+Still launch-gated (tickets.md Later): verified Resend sender domain (the dev sender only delivers internally), real Turnstile keys, custom domain.
 
 ## Working on this repo
 
