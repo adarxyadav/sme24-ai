@@ -1,0 +1,1099 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Completed-run report page (light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Tokens — light values from context/design.md, verbatim. Nothing else. */
+  :root {
+    --background: oklch(0.989 0.003 49);
+    --foreground: oklch(0.264 0.013 94);
+    --primary: oklch(0.478 0.081 203);
+    --primary-foreground: oklch(0.989 0.003 49);
+    --secondary: oklch(0.892 0.010 88);
+    --muted: oklch(0.955 0.006 85);
+    --muted-foreground: oklch(0.50 0.014 90);
+    --accent: oklch(0.955 0.006 85);
+    --destructive: oklch(0.492 0.143 16);
+    --success: oklch(0.50 0.12 144);
+    --warning: oklch(0.487 0.124 44);
+    --border: oklch(0.892 0.010 88);
+    --input: oklch(0.78 0.016 88);
+    --ring: oklch(0.478 0.081 203 / 60%);
+    --radius: 0.625rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light; scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--foreground); text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  .mono { font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums slashed-zero; }
+
+  .page { max-width: 62rem; margin: 0 auto; padding: 48px 20px 96px; display: grid; gap: 64px; }
+  /* Grid items must not inherit the tables' min-content width — wide tables
+     scroll inside .scroll, never widen the page. */
+  .page > *, .report > *, .section > * { min-width: 0; }
+  .spec { font-size: 12px; color: var(--muted-foreground); max-width: 56rem; }
+  .spec strong { color: var(--foreground); font-weight: 500; }
+
+  .state-label {
+    font-size: 12px; color: var(--muted-foreground);
+    padding-top: 24px; border-top: 1px dashed var(--input);
+  }
+  .state-label strong { color: var(--foreground); font-weight: 500; }
+
+  /* ═══ Report scaffold ═══════════════════════════════════════════════════ */
+  .report { display: grid; gap: 40px; }
+  .section { display: grid; gap: 12px; }
+
+  /* ── Masthead ─────────────────────────────────────────────────────────── */
+  .mast { display: grid; gap: 4px; }
+  .mast__brand {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .mast h1 { margin: 2px 0 0; font-size: 30px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; }
+  .mast__meta { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+  /* ── Signature: the findings line. The whole report as one strip — five
+     entries in pipeline order, mono figures, each an anchor to its section.
+     A gap renders muted where a value would stand; the strip never dresses
+     an absence as a number. It is the abstract and the table of contents. ── */
+  .findings {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--background);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    overflow: clip;
+    margin-top: 12px;
+  }
+  .findings a {
+    display: grid; gap: 3px; align-content: start;
+    padding: 12px 16px;
+    border-left: 1px solid var(--border);
+    transition: background-color 100ms ease;
+  }
+  .findings a:first-child { border-left: 0; }
+  .findings a:hover { background: color-mix(in oklab, var(--accent) 55%, var(--background)); }
+  .f__label {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted-foreground); white-space: nowrap;
+  }
+  .f__value {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-size: 13px; white-space: nowrap;
+  }
+  .f__value.dim { color: var(--muted-foreground); }
+
+  /* ── Chapter rules: the five stages chained. Numbered because the pipeline
+     is a real sequence — each stage reads the one before it. ─────────────── */
+  .chapter { display: flex; align-items: baseline; gap: 10px; }
+  .chapter__n {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px; color: var(--muted-foreground);
+  }
+  .chapter__t { font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .chapter::after { content: ""; flex: 1; height: 1px; background: var(--border); align-self: center; }
+
+  /* ── Card: one hairline. Elevation is the hairline (design.md). ───────── */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--background);
+    overflow: clip;
+  }
+
+  /* Table-style card head (ledger). */
+  .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .head__title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .head h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .head .period { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+  /* Hero-style card head (benchmark, cost, experts, proposal). */
+  .head--hero {
+    align-items: baseline;
+    padding: 14px 20px 0;
+    border-bottom: 0;
+  }
+  .eyebrow {
+    margin: 0; font-size: 11px; font-weight: 500;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .hero { padding: 6px 20px 0; }
+  .hero .total { font-size: 28px; font-weight: 500; letter-spacing: -0.01em; line-height: 1.2; }
+  .hero .total--text { font-size: 22px; }
+  .hero .claim { margin: 6px 0 0; font-size: 12px; color: var(--muted-foreground); max-width: 44rem; }
+  .card--empty .hero .total { color: var(--muted-foreground); font-size: 20px; }
+
+  .foot {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted-foreground);
+    display: grid; gap: 4px;
+  }
+  .foot--row { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .foot .mono { font-size: 11px; }
+  .foot a.action { color: var(--primary); font-weight: 500; }
+  .foot a.action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* Report close: the stance, restated once. */
+  .close { font-size: 12px; color: var(--muted-foreground); max-width: 44rem; }
+
+  /* ═══ 1 · KPI ledger (chosen: minimal pass) ═════════════════════════════ */
+  .meter { display: flex; align-items: center; gap: 8px; flex: none; }
+  .meter__ticks { display: flex; gap: 3px; }
+  .meter__ticks i { width: 12px; height: 3px; border-radius: 999px; background: var(--border); }
+  .meter__ticks i.on { background: var(--primary); }
+  .meter__count { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .meter__count b { color: var(--foreground); font-weight: 500; }
+
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  thead th {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted-foreground);
+    text-align: left; white-space: nowrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th:first-child { padding-left: 20px; }
+  thead th:last-child { padding-right: 20px; }
+  thead th.r { text-align: right; }
+  tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  tbody td:first-child { padding-left: 20px; }
+  tbody td:last-child { padding-right: 20px; white-space: normal; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background-color 100ms ease; }
+  tbody tr:hover { background: color-mix(in oklab, var(--accent) 55%, var(--background)); }
+
+  .metric { font-weight: 500; }
+  .metric .hint { font-weight: 400; font-size: 12px; color: var(--muted-foreground); margin-left: 8px; }
+  td.val { text-align: right; font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums slashed-zero; font-size: 13px; }
+  td.val .unit { color: var(--muted-foreground); font-size: 11px; margin-left: 4px; }
+  td.val .formula { display: block; font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+  td.val.none, td .none { color: var(--muted-foreground); font-family: Geist, sans-serif; font-weight: 400; }
+  td.period { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+  .conf { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .conf::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+  .conf.high { color: var(--success); }
+  .conf.medium { color: var(--warning); }
+  .conf.low { color: var(--muted-foreground); }
+  .chip {
+    font-size: 11px; color: var(--muted-foreground);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  td.src { max-width: 22rem; }
+  .src a { border-bottom: 1px solid var(--input); padding-bottom: 1px; }
+  .src a:hover { color: var(--primary); border-bottom-color: currentColor; }
+  .src .marker { color: var(--muted-foreground); }
+  .src .excerpt {
+    display: block; font-size: 12px; color: var(--muted-foreground); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  tr.empty td, tr.empty .metric { color: var(--muted-foreground); font-weight: 400; }
+
+  /* ═══ 2 · Peer benchmark (composed here — no prior mockup) ══════════════ */
+  .maturity {
+    font-size: 12px; font-weight: 500; color: var(--primary);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 3px 10px; white-space: nowrap;
+  }
+
+  /* The rank strip: every ranked figure as position on one line — the
+     company is the only emphasised mark. Position, never competing hues. */
+  .range { padding: 20px 20px 0; }
+  .range__axis { position: relative; height: 14px; }
+  .range__axis::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 50%;
+    height: 1px; background: var(--border);
+  }
+  .range i {
+    position: absolute; top: 50%; translate: -50% -50%;
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--background);
+    border: 1.5px solid var(--muted-foreground);
+  }
+  .range i.you {
+    width: 9px; height: 9px;
+    background: var(--primary); border-color: var(--primary);
+  }
+  .range__ends {
+    display: flex; justify-content: space-between;
+    font-size: 11px; color: var(--muted-foreground); margin-top: 4px;
+  }
+  .range__caption { margin-top: 2px; font-size: 11px; color: var(--muted-foreground); text-align: right; }
+
+  .panel {
+    margin: 16px 20px 0;
+    border: 1px solid var(--border); border-radius: calc(var(--radius) - 2px);
+    background: color-mix(in oklab, var(--muted) 40%, var(--background));
+    padding: 14px 16px;
+    display: grid; gap: 4px;
+  }
+  .panel .verdict { margin: 0; font-weight: 500; }
+  .panel .rationale { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+
+  .refs {
+    display: grid; grid-template-columns: repeat(4, auto); justify-content: start; gap: 8px 40px;
+    margin: 16px 0 0; padding: 0 20px;
+  }
+  .refs div { display: grid; gap: 2px; }
+  .refs dt { font-size: 12px; color: var(--muted-foreground); }
+  .refs dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+  .refs dd a { color: var(--primary); font-weight: 500; border-bottom: 1px solid transparent; }
+  .refs dd a:hover { border-bottom-color: currentColor; }
+
+  .peers { margin-top: 16px; border-top: 1px solid var(--border); }
+  .peers td .who { font-weight: 500; }
+  .peers td .sub { display: block; font-size: 11px; color: var(--muted-foreground); }
+  .peers td.rate { text-align: right; font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums slashed-zero; }
+  .peers td.rate .basis { font-family: Geist, sans-serif; color: var(--muted-foreground); font-size: 11px; margin-left: 4px; }
+  .peers tr.unranked td { color: var(--muted-foreground); }
+  .peers tr.unranked .who { font-weight: 400; color: var(--muted-foreground); }
+
+  /* ═══ 3 · Annual incident cost (chosen: invoice pass) ═══════════════════ */
+  .rail { padding: 16px 20px 0; }
+  .rail__bar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; }
+  .rail__bar i { height: 100%; }
+  .rail__bar .fat { background: var(--destructive); }
+  .rail__bar .lti { background: var(--warning); }
+  .rail__bar .rec { background: var(--input); }
+  .rail__bar .spread {
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--warning) 0 3px,
+      transparent 3px 6px
+    );
+  }
+  .rail__caption { margin-top: 6px; font-size: 11px; color: var(--muted-foreground); text-align: right; }
+
+  .lines { list-style: none; margin: 16px 0 0; padding: 0; }
+  .lines li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 4px 20px;
+    align-items: baseline;
+    padding: 10px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .line__label { display: inline-flex; align-items: baseline; gap: 8px; font-weight: 500; }
+  .line__label::before {
+    content: ""; width: 6px; height: 6px; border-radius: 999px;
+    background: var(--dot, var(--input));
+    align-self: center; flex: none;
+  }
+  li.sev-fat { --dot: var(--destructive); }
+  li.sev-lti { --dot: var(--warning); }
+  li.sev-rec { --dot: var(--input); }
+  .line__math { color: var(--muted-foreground); font-size: 12px; text-align: right; }
+  .line__amount { text-align: right; font-size: 13px; min-width: 9rem; }
+  li.zero { color: var(--muted-foreground); }
+  li.zero .line__label { font-weight: 400; color: var(--muted-foreground); }
+  li.zero .line__label::before { background: transparent; box-shadow: inset 0 0 0 1px var(--input); }
+
+  /* ═══ 4 · Matched experts (composed here — no prior mockup) ═════════════ */
+  .experts { list-style: none; margin: 16px 0 0; padding: 0; }
+  .experts li {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr auto;
+    gap: 6px 20px;
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+  }
+  .exp__fit { display: grid; gap: 4px; align-content: start; }
+  .exp__rank { font-size: 11px; color: var(--muted-foreground); white-space: nowrap; }
+  .exp__score { font-size: 15px; font-weight: 500; white-space: nowrap; }
+  .exp__score .of { font-family: Geist, sans-serif; font-weight: 400; font-size: 11px; color: var(--muted-foreground); }
+  .fit-bar { width: 4rem; height: 3px; border-radius: 999px; background: var(--border); overflow: hidden; }
+  .fit-bar b { display: block; height: 100%; background: var(--primary); border-radius: inherit; }
+  .exp__main { display: grid; gap: 6px; min-width: 0; }
+  .exp__name { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .exp__headline { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+  .exp__why { margin: 2px 0 0; font-size: 13px; max-width: 52ch; }
+  .exp__tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+  .tag {
+    font-size: 11px; line-height: 1;
+    background: var(--secondary); color: var(--foreground);
+    border-radius: calc(var(--radius) - 4px);
+    padding: 4px 7px;
+  }
+  .exp__facts { font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+  .avail { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; justify-self: end; align-self: start; margin-top: 2px; }
+  .avail::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+  .avail.ok { color: var(--success); }
+  .avail.limited { color: var(--warning); }
+  .avail.off { color: var(--muted-foreground); }
+  .avail.off::before { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+  /* ═══ 5 · Proposal ══════════════════════════════════════════════════════ */
+  .head--hero .cta { flex: none; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: inherit; font-weight: 500; font-size: 13px; line-height: 1;
+    color: var(--primary-foreground); background: var(--primary);
+    border: 0; border-radius: calc(var(--radius) - 2px);
+    padding: 10px 14px; cursor: pointer;
+    transition: filter 120ms ease;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn svg { width: 14px; height: 14px; flex: none; }
+
+  .proposal__body { display: grid; gap: 20px; padding: 16px 20px 20px; }
+  .block { display: grid; gap: 8px; }
+  .block__label { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-foreground); }
+  .package { display: grid; gap: 2px; }
+  .package .tier { font-weight: 500; font-size: 14px; }
+  .package .tier .price { font-weight: 400; font-size: 12px; color: var(--muted-foreground); margin-left: 8px; white-space: nowrap; }
+  .package .shape { font-size: 12px; color: var(--muted-foreground); }
+  .package .why { margin: 8px 0 0; font-size: 13px; max-width: 56ch; }
+  .risks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .risks li { font-size: 13px; }
+  .risks .risk { font-weight: 500; }
+  .risks .why { color: var(--muted-foreground); }
+  .sources { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+  .sources .from { color: var(--muted-foreground); }
+  .sources__none { margin: 0; font-size: 13px; color: var(--muted-foreground); }
+
+  /* ── Load: the findings line settles first, then each instrument. ─────── */
+  @media (prefers-reduced-motion: no-preference) {
+    .findings a { animation: rise 300ms cubic-bezier(0.2, 0.6, 0.2, 1) backwards; }
+    .findings a:nth-child(1) { animation-delay: 0ms; }
+    .findings a:nth-child(2) { animation-delay: 40ms; }
+    .findings a:nth-child(3) { animation-delay: 80ms; }
+    .findings a:nth-child(4) { animation-delay: 120ms; }
+    .findings a:nth-child(5) { animation-delay: 160ms; }
+    .rail__bar { transform-origin: left; animation: draw 500ms cubic-bezier(0.2, 0.6, 0.2, 1) backwards; animation-delay: 200ms; }
+    @keyframes rise { from { opacity: 0; translate: 0 4px; } }
+    @keyframes draw { from { scale: 0 1; } }
+  }
+
+  /* ── Mobile ───────────────────────────────────────────────────────────── */
+  @media (max-width: 44rem) {
+    .mast h1 { font-size: 24px; }
+    .hero .total { font-size: 24px; }
+    .hero .total--text { font-size: 19px; }
+
+    .findings { grid-template-columns: 1fr; }
+    .findings a {
+      display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+      border-left: 0; border-top: 1px solid var(--border);
+      padding: 10px 16px;
+    }
+    .findings a:first-child { border-top: 0; }
+
+    /* Ledger: each metric becomes two quiet lines (mockup convention). */
+    .ledger thead { display: none; }
+    .ledger table, .ledger tbody, .ledger tr, .ledger td { display: block; }
+    .ledger tbody td { border-bottom: 0; padding: 2px 20px; white-space: normal; }
+    .ledger tbody tr { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .ledger tbody tr:last-child { border-bottom: 0; }
+    .ledger tr { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "m v" "s s" "c c"; align-items: baseline; }
+    .ledger td.metric { grid-area: m; }
+    .ledger td.val { grid-area: v; text-align: right; }
+    .ledger td.period { display: none; }
+    .ledger td.conf-cell { grid-area: c; padding-top: 4px; }
+    /* min-width: 0 — the nowrap excerpt must truncate, not set the page width. */
+    .ledger td.src { grid-area: s; max-width: none; min-width: 0; padding-top: 4px; }
+    .ledger .metric .hint { display: block; margin: 1px 0 0; }
+
+    .refs { grid-template-columns: repeat(2, auto); }
+
+    .lines li { grid-template-columns: 1fr auto; grid-template-areas: "l a" "m a"; }
+    .line__label { grid-area: l; }
+    .line__math { grid-area: m; text-align: left; padding-left: 14px; }
+    .line__amount { grid-area: a; min-width: 0; }
+
+    .experts li { grid-template-columns: 1fr; }
+    .exp__fit { grid-row: 1; display: flex; align-items: baseline; gap: 10px; }
+    .avail { grid-row: 2; justify-self: start; margin-top: 0; }
+    .exp__main { grid-row: 3; }
+
+    .head--hero { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="spec"><strong>Completed-run report page.</strong> Tokens verbatim from context/design.md · Geist / Geist Mono · light only. Composition: <strong>the findings line</strong> — a five-entry masthead strip, the whole report as one line of mono figures in pipeline order, doubling as anchor nav; a section with nothing to say renders muted in the strip instead of being dressed up. Sections chain under numbered chapter rules (the pipeline is a real sequence) and each keeps its chosen instrument: the seven-tick meter (ledger, minimal pass), a position-only rank strip (benchmark), the cost rail (cost — <strong>invoice pass</strong>, chosen because the page is a document of line items and the rail holds one line-height at 390px where the bubble field would compete with two tables), teal fit bars (experts), and the report's single filled-teal action closing the page (proposal PDF). Data is coherent across sections per state; the derived recordable count feeds the cost card with its formula (design.md, Derived figures). Deviations flagged: benchmark + experts had no prior mockup and are composed here from the shipped cards' copy; the expert fit score is shown per the report brief although ExpertMatchesCard currently hides it; BenchmarkCard's insufficient-data copy says "incident cost above" while pipeline order puts cost below benchmark — copy fix needed in the app.</div>
+
+  <div class="state-label"><strong>State A — full run.</strong> 5 of 7 disclosed, ranked, priced, matched, Tier 2.</div>
+
+  <!-- ═══════════════════════════ STATE A ═══════════════════════════ -->
+  <article class="report">
+
+    <header class="mast">
+      <div class="mast__brand">SME24 · Safety report</div>
+      <h1>Acme Chemie AG</h1>
+      <div class="mast__meta">Chemicals · Aarau, Switzerland · FY 2025 · Run completed 27 Aug 2026</div>
+
+      <nav class="findings" aria-label="Report contents">
+        <a href="#a-ledger">
+          <span class="f__label">KPI ledger</span>
+          <span class="f__value">5 of 7 disclosed</span>
+        </a>
+        <a href="#a-benchmark">
+          <span class="f__label">Peer benchmark</span>
+          <span class="f__value">Rank 3 of 6</span>
+        </a>
+        <a href="#a-cost">
+          <span class="f__label">Incident cost</span>
+          <span class="f__value">CHF 172'000–236'000</span>
+        </a>
+        <a href="#a-experts">
+          <span class="f__label">Matched experts</span>
+          <span class="f__value">3 matched</span>
+        </a>
+        <a href="#a-proposal">
+          <span class="f__label">Proposal</span>
+          <span class="f__value">Tier 2 · CHF 5'000</span>
+        </a>
+      </nav>
+    </header>
+
+    <!-- ── 1 · KPI ledger ── -->
+    <section class="section" aria-labelledby="a-ledger-t">
+      <div class="chapter"><span class="chapter__n">1</span><span class="chapter__t">What the public record shows</span></div>
+
+      <div class="card ledger" id="a-ledger">
+        <header class="head">
+          <div class="head__title">
+            <h2 id="a-ledger-t">KPI ledger</h2>
+            <span class="period">FY 2025</span>
+          </div>
+          <div class="meter" role="img" aria-label="5 of 7 metrics have a disclosed or supplied value">
+            <span class="meter__ticks" aria-hidden="true">
+              <i class="on"></i><i class="on"></i><i></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i>
+            </span>
+            <span class="meter__count"><b>5</b>/7</span>
+          </div>
+        </header>
+
+        <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col" class="r">Value</th>
+              <th scope="col">Period</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="metric">TRIR<span class="hint">per 1'000'000 h</span></td>
+              <td class="val">2.5</td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf high">High</span></td>
+              <td class="src">
+                <a href="#s1">acme-chemie.ch<span class="sr-only"> (opens the cited disclosure)</span></a>
+                <span class="excerpt">“Our total recordable incident rate improved to 2.5 per million hours worked.”</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="metric">LTIFR<span class="hint">per 1'000'000 h</span></td>
+              <td class="val">0.83</td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf high">High</span></td>
+              <td class="src">
+                <a href="#s2">acme-chemie.ch<span class="sr-only"> (opens the cited disclosure)</span></a>
+                <span class="excerpt">“Lost time injury frequency rate: 0.83 (2024: 1.10).”</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="metric">Recordable injuries<span class="hint">count, past year</span></td>
+              <td class="val">≈ 6<span class="formula">2.5 × 2'400'000 ÷ 10⁶</span></td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="chip">Derived</span></td>
+              <td class="src"><span class="marker">Derived from TRIR and hours worked</span></td>
+            </tr>
+            <tr>
+              <td class="metric">Lost-time injuries<span class="hint">count, past year</span></td>
+              <td class="val">2</td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf high">High</span></td>
+              <td class="src"><span class="marker">Client-provided</span></td>
+            </tr>
+            <tr>
+              <td class="metric">Fatalities<span class="hint">count, past year</span></td>
+              <td class="val">0</td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf medium">Medium</span></td>
+              <td class="src">
+                <span class="marker">Uploaded report</span>
+                <span class="excerpt">“No work-related fatalities occurred at any site during the period.”</span>
+              </td>
+            </tr>
+            <tr class="empty">
+              <td class="metric">Near misses<span class="hint">count, past year</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+            <tr>
+              <td class="metric">Hours worked<span class="hint">total, past year</span></td>
+              <td class="val">2'400'000<span class="unit">h</span></td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf medium">Medium</span></td>
+              <td class="src">
+                <a href="#s3">annualreports.com<span class="sr-only"> (opens the cited disclosure)</span></a>
+                <span class="excerpt">“…a workforce of approximately 1'250 FTE delivering 2.4 million productive hours.”</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <footer class="foot foot--row">
+          <span>Copied from cited disclosures or supplied by you. Nothing is estimated.</span>
+          <span class="mono">≈ derived at display time</span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ── 2 · Peer benchmark ── -->
+    <section class="section" aria-labelledby="a-benchmark-t">
+      <div class="chapter"><span class="chapter__n">2</span><span class="chapter__t">Where it stands among peers</span></div>
+
+      <div class="card" id="a-benchmark">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="a-benchmark-t">Peer benchmark</h2>
+          <span class="maturity">Calculative</span>
+        </header>
+
+        <div class="hero">
+          <div class="total total--text">Rank 3 of 6 on TRIR</div>
+          <p class="claim">Rank 1 is the lowest rate. Ranked only against peers disclosing the same metric on the same basis (per 1'000'000 hours worked); nothing is converted.</p>
+        </div>
+
+        <div class="range" role="img" aria-label="Ranked TRIR figures from 1.6 to 4.6 on one axis; this company at 2.5 is rank 3 of 6">
+          <div class="range__axis" aria-hidden="true">
+            <i style="left: 32%"></i>
+            <i style="left: 42%"></i>
+            <i class="you" style="left: 50%"></i>
+            <i style="left: 60%"></i>
+            <i style="left: 76%"></i>
+            <i style="left: 92%"></i>
+          </div>
+          <div class="range__ends mono" aria-hidden="true"><span>0</span><span>5.0</span></div>
+          <div class="range__caption">each mark — a ranked TRIR · filled — this company, 2.5 · left is lower</div>
+        </div>
+
+        <div class="panel">
+          <p class="verdict">Better than the sector median, clearly behind the leaders: two of five ranked peers report a lower TRIR, and the gap to best in class is more than a full point.</p>
+          <p class="rationale">Rates are tracked and published, but no near-miss figure is disclosed and no reduction target accompanies the numbers — data is collected rather than acted on, which places the culture at Calculative on the Hudson scale.</p>
+        </div>
+
+        <dl class="refs">
+          <div>
+            <dt>Sector median TRIR</dt>
+            <dd>3.2</dd>
+          </div>
+          <div>
+            <dt>Best in class TRIR</dt>
+            <dd>1.1</dd>
+          </div>
+          <div>
+            <dt>Reference source</dt>
+            <dd><a href="#r1">cefic.org<span class="sr-only"> (opens in a new tab)</span></a></dd>
+          </div>
+        </dl>
+
+        <div class="scroll peers">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Peer</th>
+              <th scope="col" class="r">TRIR</th>
+              <th scope="col" class="r">LTIFR</th>
+              <th scope="col">Year</th>
+              <th scope="col">Scope</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="who">Helvetia Polymer AG</span><span class="sub">Switzerland</span></td>
+              <td class="rate">1.6</td>
+              <td class="rate">0.6</td>
+              <td class="period">2025</td>
+              <td class="period">Group</td>
+              <td class="src"><a href="#p1">helvetiapolymer.ch<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+            <tr>
+              <td><span class="who">Rheintal Chemie AG</span><span class="sub">Switzerland</span></td>
+              <td class="rate">2.1</td>
+              <td class="rate">0.9</td>
+              <td class="period">2025</td>
+              <td class="period">Group</td>
+              <td class="src"><a href="#p2">rheintal-chemie.ch<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+            <tr>
+              <td><span class="who">Argovia Specialties SA</span><span class="sub">Switzerland</span></td>
+              <td class="rate">3.0</td>
+              <td class="rate"><span class="none">—</span></td>
+              <td class="period">2024</td>
+              <td class="period">CH sites</td>
+              <td class="src"><a href="#p3">argovia-specialties.ch<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+            <tr>
+              <td><span class="who">Jura Coatings AG</span><span class="sub">Switzerland</span></td>
+              <td class="rate">3.8</td>
+              <td class="rate">1.4</td>
+              <td class="period">2025</td>
+              <td class="period">Group</td>
+              <td class="src"><a href="#p4">juracoatings.ch<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+            <tr>
+              <td><span class="who">Basler Additive GmbH</span><span class="sub">Switzerland</span></td>
+              <td class="rate">4.6</td>
+              <td class="rate">2.0</td>
+              <td class="period">2024</td>
+              <td class="period">Group</td>
+              <td class="src"><a href="#p5">basler-additive.ch<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+            <tr class="unranked">
+              <td><span class="who">Nordchem GmbH</span><span class="sub">Germany · not ranked</span></td>
+              <td class="rate">3.1<span class="basis">per 200'000 h</span></td>
+              <td class="rate"><span class="none">—</span></td>
+              <td class="period">2025</td>
+              <td class="period">Group</td>
+              <td class="src"><a href="#p6">nordchem.de<span class="sr-only"> (opens in a new tab)</span></a></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <footer class="foot">
+          <span>Peer figures as each peer disclosed them; a peer on another basis is listed but not ranked.</span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ── 3 · Annual incident cost ── -->
+    <section class="section" aria-labelledby="a-cost-t">
+      <div class="chapter"><span class="chapter__n">3</span><span class="chapter__t">What those incidents cost each year</span></div>
+
+      <div class="card" id="a-cost">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="a-cost-t">Annual incident cost</h2>
+          <span class="period">FY 2025</span>
+        </header>
+
+        <div class="hero">
+          <div class="total mono">CHF 172'000 – 236'000</div>
+          <p class="claim">The cost of the incidents in the ledger, priced per incident from the ISO 45004 loss table. Not a comparison against peers.</p>
+        </div>
+
+        <div class="rail" role="img" aria-label="Of the maximum CHF 236'000: lost-time injuries CHF 112'000 to 176'000, other recordable injuries CHF 60'000; fatalities CHF 0">
+          <div class="rail__bar" aria-hidden="true">
+            <i class="lti" style="width: 47.5%"></i>
+            <i class="rec" style="width: 25.4%"></i>
+            <i class="spread" style="width: 27.1%"></i>
+          </div>
+          <div class="rail__caption">hatched — the lost-time min–max spread</div>
+        </div>
+
+        <ul class="lines">
+          <li class="sev-fat zero">
+            <span class="line__label">Fatalities</span>
+            <span class="line__math mono">0 × 1'200'000</span>
+            <span class="line__amount mono">0</span>
+          </li>
+          <li class="sev-lti">
+            <span class="line__label">Lost-time injuries</span>
+            <span class="line__math mono">2 × 56'000–88'000</span>
+            <span class="line__amount mono">112'000 – 176'000</span>
+          </li>
+          <li class="sev-rec">
+            <span class="line__label">Other recordable injuries</span>
+            <span class="line__math mono">≈ 4 × 15'000</span>
+            <span class="line__amount mono">60'000</span>
+          </li>
+        </ul>
+
+        <footer class="foot">
+          <span>Derived counts used: recordable injuries ≈ 6 — 2.5 × 2'400'000 ÷ 10⁶.</span>
+          <span>Per incident: fatality CHF 1'200'000; lost-time injury CHF 56'000–CHF 88'000; other recordable injury CHF 15'000.</span>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ── 4 · Matched experts ── -->
+    <section class="section" aria-labelledby="a-experts-t">
+      <div class="chapter"><span class="chapter__n">4</span><span class="chapter__t">Who can close the gap</span></div>
+
+      <div class="card" id="a-experts">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="a-experts-t">Matched experts</h2>
+        </header>
+
+        <div class="hero">
+          <div class="total total--text">Who can help</div>
+          <p class="claim">Senior EHS consultants from our network, ranked by fit with this company’s risk profile.</p>
+        </div>
+
+        <ol class="experts">
+          <li>
+            <div class="exp__fit">
+              <span class="exp__rank">#1 · fit</span>
+              <span class="exp__score mono">91<span class="of"> / 100</span></span>
+              <span class="fit-bar" aria-hidden="true"><b style="width: 91%"></b></span>
+            </div>
+            <div class="exp__main">
+              <h3 class="exp__name">Dr. Beat Frei</h3>
+              <p class="exp__headline">Process safety lead · 20 years in Swiss specialty chemicals</p>
+              <p class="exp__why">Your TRIR of 2.5 trails four of five ranked peers while your lost-time count is real and recent, and no near-miss programme is disclosed. Beat has built exactly this — process-safety and near-miss systems — at three Mittelland chemical SMEs of comparable size.</p>
+              <div class="exp__tags">
+                <span class="tag">Chemical &amp; process safety</span>
+                <span class="tag">Incident investigation &amp; root cause</span>
+                <span class="tag">Legal compliance &amp; audits (EKAS, SUVA)</span>
+              </div>
+              <p class="exp__facts">German, English · German-speaking Switzerland, Remote · 20 years</p>
+            </div>
+            <span class="avail ok">Available for new engagements</span>
+          </li>
+          <li>
+            <div class="exp__fit">
+              <span class="exp__rank">#2 · fit</span>
+              <span class="exp__score mono">84<span class="of"> / 100</span></span>
+              <span class="fit-bar" aria-hidden="true"><b style="width: 84%"></b></span>
+            </div>
+            <div class="exp__main">
+              <h3 class="exp__name">Claudia Meier</h3>
+              <p class="exp__headline">ISO 45001 lead auditor &amp; safety-culture coach</p>
+              <p class="exp__why">The benchmark places your culture at Calculative — figures collected, not acted on. Claudia moves organisations from tracking to acting: audit-backed ISO 45001 gap work paired with leadership coaching, in German or French.</p>
+              <div class="exp__tags">
+                <span class="tag">OH&amp;S management systems (ISO 45001)</span>
+                <span class="tag">Safety culture &amp; leadership</span>
+                <span class="tag">Training &amp; competence</span>
+              </div>
+              <p class="exp__facts">German, French · German-speaking Switzerland, Romandie · 14 years</p>
+            </div>
+            <span class="avail limited">Limited capacity</span>
+          </li>
+          <li>
+            <div class="exp__fit">
+              <span class="exp__rank">#3 · fit</span>
+              <span class="exp__score mono">77<span class="of"> / 100</span></span>
+              <span class="fit-bar" aria-hidden="true"><b style="width: 77%"></b></span>
+            </div>
+            <div class="exp__main">
+              <h3 class="exp__name">Marc Dubois</h3>
+              <p class="exp__headline">Machine safety &amp; risk assessment engineer</p>
+              <p class="exp__why">Both lost-time injuries in your ledger price at the lost-time rows of the cost model. Marc’s machine-safeguarding and risk-assessment work targets that class of incident directly; less depth on process chemistry than the leads above.</p>
+              <div class="exp__tags">
+                <span class="tag">Machine &amp; equipment safety</span>
+                <span class="tag">Hazard identification &amp; risk assessment</span>
+                <span class="tag">Ergonomics</span>
+              </div>
+              <p class="exp__facts">French, German, English · Romandie, Remote · 11 years</p>
+            </div>
+            <span class="avail ok">Available for new engagements</span>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── 5 · Proposal ── -->
+    <section class="section" aria-labelledby="a-proposal-t">
+      <div class="chapter"><span class="chapter__n">5</span><span class="chapter__t">What we propose</span></div>
+
+      <div class="card" id="a-proposal">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="a-proposal-t">Consulting proposal</h2>
+          <span class="cta">
+            <a class="btn" href="#pdf-a">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
+              Download PDF
+            </a>
+          </span>
+        </header>
+
+        <div class="hero">
+          <div class="total total--text">EHS System &amp; Culture Snapshot — Acme Chemie AG</div>
+          <p class="claim">A two-day on-site assessment that turns this report’s findings — a mid-field TRIR, two lost-time injuries, and no visible near-miss programme — into a validated top-20 risk picture for your sites.</p>
+        </div>
+
+        <div class="proposal__body">
+          <div class="panel" style="margin: 0;">
+            <span class="block__label">Recommended package</span>
+            <div class="package">
+              <span class="tier">2 — EHS System &amp; Culture Snapshot<span class="price">CHF 5'000 excl. MWST</span></span>
+              <span class="shape">On-site · 2 days · Top 20 risks</span>
+              <p class="why">Your ledger is strong enough to skip the remote snapshot: the rates are disclosed and current, so the open question is not where you stand but why incidents still occur. That is answered on site, against the ISO 45001 baseline Tier 2 adds.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <span class="block__label">Key risks</span>
+            <ul class="risks">
+              <li><span class="risk">No near-miss reporting is visible</span><span class="why"> — the earliest warning layer is missing from the record, so recurrence is found only after an injury.</span></li>
+              <li><span class="risk">Lost-time incidents concentrate the cost</span><span class="why"> — the two lost-time injuries carry CHF 112'000–176'000 of a CHF 236'000 worst case.</span></li>
+              <li><span class="risk">Rates are published without targets</span><span class="why"> — a Calculative pattern: measurement exists, but nothing in the record commits to reducing it.</span></li>
+            </ul>
+          </div>
+
+          <div class="block">
+            <span class="block__label">EHS Vault sources</span>
+            <ul class="sources">
+              <li>SUVA branch solution — chemical industry checklist<span class="from"> — SUVA</span></li>
+              <li>ISO 45001:2018 gap assessment guide<span class="from"> — EHS Vault</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="close">Every figure above carries its provenance — copied from a cited disclosure, supplied by you, or derived in code and marked ≈. Nothing is estimated.</p>
+  </article>
+
+  <div class="state-label"><strong>State B — thin-disclosure run.</strong> One supplied figure, no rank, nothing to price, no match — every gap stated, and the proposal starts where the data allows.</div>
+
+  <!-- ═══════════════════════════ STATE B ═══════════════════════════ -->
+  <article class="report">
+
+    <header class="mast">
+      <div class="mast__brand">SME24 · Safety report</div>
+      <h1>Muri Präzision GmbH</h1>
+      <div class="mast__meta">Metal fabrication · Muri, Switzerland · FY 2025 · Run completed 27 Aug 2026</div>
+
+      <nav class="findings" aria-label="Report contents">
+        <a href="#b-ledger">
+          <span class="f__label">KPI ledger</span>
+          <span class="f__value">1 of 7 disclosed</span>
+        </a>
+        <a href="#b-benchmark">
+          <span class="f__label">Peer benchmark</span>
+          <span class="f__value dim">Insufficient data</span>
+        </a>
+        <a href="#b-cost">
+          <span class="f__label">Incident cost</span>
+          <span class="f__value dim">Cannot be estimated</span>
+        </a>
+        <a href="#b-experts">
+          <span class="f__label">Matched experts</span>
+          <span class="f__value dim">0 matched</span>
+        </a>
+        <a href="#b-proposal">
+          <span class="f__label">Proposal</span>
+          <span class="f__value">Tier 1 · CHF 2'000</span>
+        </a>
+      </nav>
+    </header>
+
+    <!-- ── 1 · KPI ledger ── -->
+    <section class="section" aria-labelledby="b-ledger-t">
+      <div class="chapter"><span class="chapter__n">1</span><span class="chapter__t">What the public record shows</span></div>
+
+      <div class="card ledger" id="b-ledger">
+        <header class="head">
+          <div class="head__title">
+            <h2 id="b-ledger-t">KPI ledger</h2>
+            <span class="period">FY 2025</span>
+          </div>
+          <div class="meter" role="img" aria-label="1 of 7 metrics has a disclosed or supplied value">
+            <span class="meter__ticks" aria-hidden="true">
+              <i></i><i></i><i></i><i></i><i></i><i class="on"></i><i></i>
+            </span>
+            <span class="meter__count"><b>1</b>/7</span>
+          </div>
+        </header>
+
+        <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col" class="r">Value</th>
+              <th scope="col">Period</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="empty">
+              <td class="metric">TRIR<span class="hint">per 1'000'000 h</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+            <tr class="empty">
+              <td class="metric">LTIFR<span class="hint">per 1'000'000 h</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+            <tr class="empty">
+              <td class="metric">Recordable injuries<span class="hint">count, past year</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+            <tr class="empty">
+              <td class="metric">Fatalities<span class="hint">count, past year</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+            <tr>
+              <td class="metric">Near misses<span class="hint">count, past year</span></td>
+              <td class="val">12</td>
+              <td class="period">FY 2025</td>
+              <td class="conf-cell"><span class="conf high">High</span></td>
+              <td class="src"><span class="marker">Client-provided</span></td>
+            </tr>
+            <tr class="empty">
+              <td class="metric">Hours worked<span class="hint">total, past year</span></td>
+              <td class="val none">Not disclosed</td>
+              <td class="period"><span class="none">—</span></td>
+              <td class="conf-cell"><span class="none">—</span></td>
+              <td class="src"><span class="none">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+        </div>
+
+        <footer class="foot foot--row">
+          <span>Public disclosure is thin for this company. Your own figures always win.</span>
+          <a class="action" href="#add">Add figures</a>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ── 2 · Peer benchmark — insufficient ── -->
+    <section class="section" aria-labelledby="b-benchmark-t">
+      <div class="chapter"><span class="chapter__n">2</span><span class="chapter__t">Where it stands among peers</span></div>
+
+      <div class="card card--empty" id="b-benchmark">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="b-benchmark-t">Peer benchmark</h2>
+        </header>
+        <div class="hero" style="padding-bottom: 16px;">
+          <div class="total">Insufficient benchmark data</div>
+          <p class="claim">No peer in this sector discloses a comparable injury rate and no sector reference is published, so the company cannot be placed. The KPI ledger and incident cost above stand on their own.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 3 · Annual incident cost — nothing to price ── -->
+    <section class="section" aria-labelledby="b-cost-t">
+      <div class="chapter"><span class="chapter__n">3</span><span class="chapter__t">What those incidents cost each year</span></div>
+
+      <div class="card card--empty" id="b-cost">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="b-cost-t">Annual incident cost</h2>
+          <span class="period">FY 2025</span>
+        </header>
+        <div class="hero">
+          <div class="total">Cannot be estimated</div>
+          <p class="claim">No incident count is disclosed or supplied, so there is nothing to price.</p>
+        </div>
+        <footer class="foot" style="margin-top: 16px;">
+          <a class="action" href="#new-run">Run a new search with your own counts</a>
+        </footer>
+      </div>
+    </section>
+
+    <!-- ── 4 · Matched experts — none ── -->
+    <section class="section" aria-labelledby="b-experts-t">
+      <div class="chapter"><span class="chapter__n">4</span><span class="chapter__t">Who can close the gap</span></div>
+
+      <div class="card card--empty" id="b-experts">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="b-experts-t">Matched experts</h2>
+        </header>
+        <div class="hero" style="padding-bottom: 16px;">
+          <div class="total">No expert matched yet</div>
+          <p class="claim">No approved expert in our network fits this profile yet. We add experts continuously; check back or contact us.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 5 · Proposal ── -->
+    <section class="section" aria-labelledby="b-proposal-t">
+      <div class="chapter"><span class="chapter__n">5</span><span class="chapter__t">What we propose</span></div>
+
+      <div class="card" id="b-proposal">
+        <header class="head head--hero">
+          <h2 class="eyebrow" id="b-proposal-t">Consulting proposal</h2>
+          <span class="cta">
+            <a class="btn" href="#pdf-b">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>
+              Download PDF
+            </a>
+          </span>
+        </header>
+
+        <div class="hero">
+          <div class="total total--text">EHS Snapshot — Muri Präzision GmbH</div>
+          <p class="claim">Almost nothing about this company’s safety performance is public: one supplied near-miss count, no rates, no benchmark. A one-day remote snapshot establishes where you actually stand before anything larger is worth buying.</p>
+        </div>
+
+        <div class="proposal__body">
+          <div class="panel" style="margin: 0;">
+            <span class="block__label">Recommended package</span>
+            <div class="package">
+              <span class="tier">1 — EHS Snapshot<span class="price">CHF 2'000 excl. MWST</span></span>
+              <span class="shape">Remote · 1 day · Top 5 risks</span>
+              <p class="why">With one figure in the ledger there is nothing to validate on site yet. The remote snapshot builds the missing baseline — visibility in 48 hours — and the twelve near misses you already record give it a working starting point.</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <span class="block__label">Key risks</span>
+            <ul class="risks">
+              <li><span class="risk">Safety performance is unmeasured</span><span class="why"> — no rate, count, or hours figure exists in the record, so neither cost nor benchmark can be computed.</span></li>
+              <li><span class="risk">Near misses are recorded but go nowhere visible</span><span class="why"> — twelve reported events with no published follow-through suggests the reporting layer outruns the acting layer.</span></li>
+            </ul>
+          </div>
+
+          <div class="block">
+            <span class="block__label">EHS Vault sources</span>
+            <p class="sources__none">Drafted without reference material — the vault held nothing relevant for this profile.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <p class="close">Every figure above carries its provenance — copied from a cited disclosure, supplied by you, or derived in code and marked ≈. Nothing is estimated.</p>
+  </article>
+
+</div>
+</body>
+</html>

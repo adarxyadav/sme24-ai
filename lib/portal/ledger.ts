@@ -4,15 +4,28 @@ import {
   METRIC_LABELS,
   type CanonicalMetric,
 } from "@/lib/runs/metrics";
+import { isPerMillionHours } from "@/lib/runs/rank";
 import type { KpiRow } from "@/lib/portal/kpis";
 
 // kpi-contract.md, Show: web metrics always render — found or an honest "not
-// disclosed" — while client-only metrics render only when supplied. Research
-// never fills lost_time_injuries (it folds under LTIFR), so it is the one
-// canonical metric with no standing row.
+// disclosed" — while client-only metrics render only when supplied or derived.
+// Research never fills lost_time_injuries (it folds under LTIFR), so it is the
+// one canonical metric with no standing row.
 const CLIENT_ONLY_METRICS: ReadonlySet<CanonicalMetric> = new Set([
   "lost_time_injuries",
 ]);
+
+// A display-time derivation (kpi-contract.md, Derivation rules; design.md,
+// Derived figures): computed context, never presented as a disclosure. The
+// formula string is what renders under the ≈ value; inputs is the prose for
+// the Source cell ("Derived from <inputs>").
+export type DerivedFigure = {
+  value: number;
+  formula: string;
+  inputs: string;
+};
+
+export type DerivedFigures = Partial<Record<CanonicalMetric, DerivedFigure>>;
 
 export type LedgerRow = {
   metric: CanonicalMetric;
@@ -20,19 +33,79 @@ export type LedgerRow = {
   hint: string;
   // Null = not disclosed; the stored row, when present, carries the provenance.
   kpi: KpiRow | null;
+  // Set only when no stored value exists for the metric.
+  derived: DerivedFigure | null;
 };
 
+type ValuedKpi = KpiRow & { value: number };
+
+// A rate feeds a count only on the contract base: a disclosed unit must read
+// per 1'000'000 hours, and a client figure is on that base by construction —
+// the form asks on it (kpi-contract.md).
+function onContractBase(kpi: KpiRow): boolean {
+  return kpi.origin === "client" || isPerMillionHours(kpi.unit);
+}
+
+// The derivation rules the ledger and the incident-cost card share. Counts
+// derive from stored rows only (design.md): hours derived from headcount is
+// shown as a figure but never feeds a count.
+export function deriveFigures(
+  rows: readonly KpiRow[],
+  headcount: number | null,
+): DerivedFigures {
+  const byMetric = new Map(rows.map((row) => [row.metric, row]));
+  const valued = (metric: CanonicalMetric): ValuedKpi | null => {
+    const row = byMetric.get(metric);
+    // Assertion mirrors the null check on the line above.
+    return row && row.value !== null ? (row as ValuedKpi) : null;
+  };
+
+  const out: DerivedFigures = {};
+
+  const hours = valued("hours_worked");
+  if (!hours && headcount !== null && headcount > 0) {
+    out.hours_worked = {
+      value: headcount * 1_880,
+      formula: `${formatValue(headcount)} employees × ${formatValue(1_880)} h`,
+      inputs: "the disclosed headcount",
+    };
+  }
+
+  if (hours) {
+    const deriveCount = (
+      metric: "total_recordable_injuries" | "lost_time_injuries",
+      rateMetric: "TRIR" | "LTIFR",
+    ) => {
+      const rate = valued(rateMetric);
+      if (valued(metric) || !rate || !onContractBase(rate)) return;
+      out[metric] = {
+        value: Math.round((rate.value * hours.value) / 1_000_000),
+        formula: `${METRIC_LABELS[rateMetric]} ${formatValue(rate.value)} × ${formatValue(hours.value)} h ÷ ${formatValue(1_000_000)}`,
+        inputs: `${METRIC_LABELS[rateMetric]} and ${METRIC_LABELS.hours_worked.toLowerCase()}`,
+      };
+    };
+    deriveCount("total_recordable_injuries", "TRIR");
+    deriveCount("lost_time_injuries", "LTIFR");
+  }
+
+  return out;
+}
+
 // One row per canonical metric in contract order; stored rows are joined by
-// metric. Nothing is derived here — the derivation rules in kpi-contract.md
-// (counts from rate × hours, the CHF loss model) are Later, not this ledger.
-export function buildLedger(rows: readonly KpiRow[]): LedgerRow[] {
+// metric, derived figures fill in where no stored value exists.
+export function buildLedger(
+  rows: readonly KpiRow[],
+  derivedFigures: DerivedFigures,
+): LedgerRow[] {
   const byMetric = new Map(rows.map((row) => [row.metric, row]));
 
   return CANONICAL_METRICS.flatMap((metric) => {
     const kpi = byMetric.get(metric) ?? null;
-    if (!kpi && CLIENT_ONLY_METRICS.has(metric)) return [];
+    const derived =
+      kpi?.value === null || kpi === null ? (derivedFigures[metric] ?? null) : null;
+    if (!kpi && !derived && CLIENT_ONLY_METRICS.has(metric)) return [];
     return [
-      { metric, label: METRIC_LABELS[metric], hint: METRIC_HINTS[metric], kpi },
+      { metric, label: METRIC_LABELS[metric], hint: METRIC_HINTS[metric], kpi, derived },
     ];
   });
 }

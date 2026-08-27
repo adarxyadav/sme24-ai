@@ -14,8 +14,14 @@ Three user roles share the app — **clients**, **experts**, and **admins** — 
 - Tailwind CSS 4
 - Supabase (EU) — Postgres + RLS, Auth; migrations in `supabase/migrations/` via `npx supabase`
 - pnpm
+- Supabase Storage (private buckets `uploads`, `proposals`; signed URLs only) + pgvector (the EHS Vault)
+- Trigger.dev v4 — the five-stage background pipeline, every AI call (`trigger/`)
+- Vercel AI SDK + AI Gateway — one pipeline model, embeddings for the vault
+- Parallel Task API — company research (ultra) and peer research (base, escalating to ultra)
+- Cloudflare Turnstile on `/login` via Supabase captcha protection
+- `@react-pdf/renderer` — the proposal PDF
 
-Planned, not wired yet: Supabase Storage + pgvector, Trigger.dev (background pipeline, all AI calls), Vercel AI SDK + AI Gateway, Parallel Task API (web research), Stripe Checkout. See [AGENTS.md](AGENTS.md) for the target layout; pipeline contract in [context/product/pipeline-rules.md](context/product/pipeline-rules.md).
+Not wired yet: Stripe Checkout (packages are shown, not sold). See [AGENTS.md](AGENTS.md) for the layout; pipeline contract in [context/product/pipeline-rules.md](context/product/pipeline-rules.md).
 
 ## Run
 
@@ -29,7 +35,7 @@ pnpm lint
 
 ## Deploy
 
-Not set up yet — this section fills in when the first deploy target lands.
+Not set up yet — the dev stack (`pnpm dev` + `npx trigger.dev@latest dev`) is the only running environment. This section fills in when the deploy ticket lands (Vercel EU + Trigger.dev prod).
 
 ## Working on this repo
 

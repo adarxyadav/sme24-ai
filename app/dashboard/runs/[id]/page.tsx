@@ -15,9 +15,9 @@ import { buildIncidentCost } from "@/lib/portal/incident-cost";
 import { getRunMatches } from "@/lib/portal/matches";
 import { getRunProposal } from "@/lib/portal/proposal";
 import { getRunKpis } from "@/lib/portal/kpis";
-import { buildLedger } from "@/lib/portal/ledger";
+import { buildLedger, deriveFigures } from "@/lib/portal/ledger";
 import { runState } from "@/lib/portal/run-state";
-import { getRunById } from "@/lib/portal/runs";
+import { getRunById, getRunHeadcount } from "@/lib/portal/runs";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -34,8 +34,10 @@ export default async function RunPage({
 
   const state = runState(run.status);
   const kpis = state === "completed" ? await getRunKpis(run.id) : null;
-  const ledger = kpis ? buildLedger(kpis) : null;
-  const cost = kpis ? buildIncidentCost(kpis) : null;
+  const headcount = kpis ? await getRunHeadcount(run.id) : null;
+  const derived = kpis ? deriveFigures(kpis, headcount) : null;
+  const ledger = kpis && derived ? buildLedger(kpis, derived) : null;
+  const cost = kpis && derived ? buildIncidentCost(kpis, derived) : null;
   // Runs completed before stage 3 existed have no row and show no card.
   const benchmark = kpis ? await getRunBenchmark(run.id) : null;
   // Shown only once a run has a benchmark row, i.e. went through stage 3+.

@@ -1,4 +1,5 @@
 import type { KpiRow } from "@/lib/portal/kpis";
+import type { DerivedFigures } from "@/lib/portal/ledger";
 import { METRIC_LABELS } from "@/lib/runs/metrics";
 
 // Annual incident cost — kpi-contract.md, "Loss model — absolute incident
@@ -36,8 +37,12 @@ export type IncidentCost = {
   // Lost-time count absent while recordables are present: every recordable
   // priced at the recordable row, which the report must say.
   lostTimeUnknown: boolean;
-  // Labels of the counts with no stored row — no row, a smaller honest total.
+  // Labels of the counts with no stored or derived figure — no row, a smaller
+  // honest total.
   missing: string[];
+  // The derived counts the waterfall consumed, label + formula, for the
+  // "Derived counts used" note (design.md, Derived figures).
+  derivedUsed: { label: string; value: number; formula: string }[];
 };
 
 function count(rows: readonly KpiRow[], metric: KpiRow["metric"]): number | null {
@@ -46,11 +51,28 @@ function count(rows: readonly KpiRow[], metric: KpiRow["metric"]): number | null
 }
 
 // The waterfall, in severity order. Null when no count exists at all: the
-// contract forbids inventing a row, so there is nothing to price.
-export function buildIncidentCost(rows: readonly KpiRow[]): IncidentCost | null {
+// contract forbids inventing a row, so there is nothing to price. A derived
+// count stands in for a stored one exactly (design.md, Derived figures);
+// fatalities are never derivable.
+export function buildIncidentCost(
+  rows: readonly KpiRow[],
+  derived: DerivedFigures,
+): IncidentCost | null {
   const fatalities = count(rows, "fatalities");
-  const lostTime = count(rows, "lost_time_injuries");
-  const recordables = count(rows, "total_recordable_injuries");
+  const lostTime = count(rows, "lost_time_injuries") ?? derived.lost_time_injuries?.value ?? null;
+  const recordables =
+    count(rows, "total_recordable_injuries") ?? derived.total_recordable_injuries?.value ?? null;
+
+  const derivedUsed = (
+    [
+      ["lost_time_injuries", derived.lost_time_injuries],
+      ["total_recordable_injuries", derived.total_recordable_injuries],
+    ] as const
+  ).flatMap(([metric, figure]) =>
+    figure && count(rows, metric) === null
+      ? [{ label: METRIC_LABELS[metric], value: figure.value, formula: figure.formula }]
+      : [],
+  );
 
   const out: CostRow[] = [];
 
@@ -92,6 +114,7 @@ export function buildIncidentCost(rows: readonly KpiRow[]): IncidentCost | null 
     max: out.reduce((sum, row) => sum + row.max, 0),
     lostTimeUnknown: lostTime === null && recordables !== null,
     missing,
+    derivedUsed,
   };
 }
 

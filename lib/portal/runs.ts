@@ -4,8 +4,10 @@ import { createClient } from "@/lib/supabase/server";
 // The read layer (pipeline-rules.md: the dashboard never talks to the engine).
 // Every read is RLS-scoped through the cookie-bound client, so a run the caller
 // does not own is simply absent — ownership is never re-checked in a page.
-// Column lists are explicit: `error`, `research`, `cache_key`, `processor` and
-// `uploaded_report_path` are pipeline-internal and never selected here.
+// Column lists are explicit: `error`, `cache_key`, `processor` and
+// `uploaded_report_path` are pipeline-internal and never selected here;
+// `research` stays internal too, except the single headcount scalar the
+// derivation rules need (getRunHeadcount).
 
 export type RunStatus =
   | "queued"
@@ -43,6 +45,25 @@ export async function getRunById(id: string): Promise<Run | null> {
     return null;
   }
   return data;
+}
+
+// The one research field the report reads: headcount feeds the hours
+// derivation (kpi-contract.md, Derivation rules). Selected as a scalar via a
+// JSON path so the rest of the envelope never crosses the boundary.
+export async function getRunHeadcount(id: string): Promise<number | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("analysis_runs")
+    .select("headcount:research->output->company->headcount")
+    .eq("id", id)
+    .maybeSingle<{ headcount: unknown }>();
+
+  if (error) {
+    console.error("headcount lookup failed", id, error.message);
+    return null;
+  }
+  const value = data?.headcount;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 // No user predicate: the owner policy on analysis_runs is the filter.

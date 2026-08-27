@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPI ledger — report table (light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ---- Tokens: light values from context/design.md / app/globals.css, verbatim ---- */
+  :root {
+    --background: oklch(0.989 0.003 49);
+    --foreground: oklch(0.264 0.013 94);
+    --card: oklch(0.989 0.003 49);
+    --primary: oklch(0.478 0.081 203);
+    --primary-foreground: oklch(0.989 0.003 49);
+    --secondary: oklch(0.892 0.010 88);
+    --muted: oklch(0.955 0.006 85);
+    --muted-foreground: oklch(0.50 0.014 90);
+    --accent: oklch(0.955 0.006 85);
+    --success: oklch(0.50 0.12 144);
+    --warning: oklch(0.487 0.124 44);
+    --destructive: oklch(0.492 0.143 16);
+    --border: oklch(0.892 0.010 88);
+    --input: oklch(0.78 0.016 88);
+    --ring: oklch(0.478 0.081 203 / 60%);
+    --radius: 0.625rem;
+    /* derived, token-relative only — same trio as the experts card */
+    --lit: oklch(from var(--background) calc(l + 0.008) c h);
+    --ink-hairline: oklch(from var(--foreground) l c h / 8%);
+    --sunk: oklch(from var(--muted) calc(l - 0.012) c h);
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 4px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  a { color: var(--primary); text-decoration: none; }
+
+  .page { max-width: 72rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; display: grid; gap: 3rem; }
+  .spec { font-size: 13px; color: var(--muted-foreground); display: flex; gap: 1rem; flex-wrap: wrap; align-items: baseline; }
+  .spec strong { color: var(--foreground); font-weight: 500; }
+  .spec code { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: 12px; background: var(--muted); padding: 0.1em 0.4em; border-radius: 4px; }
+
+  /* ======================================================================
+     Card shell — same depth grammar as the experts card:
+     hairline border, lit top edge (inset), zero drop shadows.
+     ====================================================================== */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-top-color: var(--lit);
+    box-shadow: inset 0 1px 0 var(--lit);
+    border-radius: calc(var(--radius) + 2px);
+    overflow: clip;
+  }
+  .card__head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    padding: 1.125rem 1.5rem 0.875rem;
+  }
+  .stage { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted-foreground); font-weight: 500; }
+  .card__title { margin: 0.125rem 0 0; font-size: 1.125rem; font-weight: 600; letter-spacing: -0.01em; }
+  .card__meta { font-size: 13px; color: var(--muted-foreground); white-space: nowrap; }
+  .card__meta b { color: var(--foreground); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* ======================================================================
+     The ledger. A real <table>; the ledger aesthetic is:
+     - a recessed header strip (the well surface, inset lip)
+     - ruled rows: single hairlines, thicker rule closing the table
+     - figures right-aligned, tabular + slashed-zero numerals, Geist Mono
+     ====================================================================== */
+  .ledger-wrap { padding: 0 1rem 0.25rem; }
+  .ledger-scroll { overflow-x: auto; }
+  table.ledger {
+    width: 100%;
+    border-collapse: separate; border-spacing: 0;
+    font-size: 14px;
+  }
+
+  .ledger thead th {
+    font-size: 11.5px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--muted-foreground);
+    text-align: left;
+    padding: 0.55rem 0.75rem;
+    background: var(--sunk);
+    border-top: 1px solid var(--input);            /* the lip of the recess */
+    border-bottom: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 var(--ink-hairline); /* inner lip — same recipe as the experts well */
+    white-space: nowrap;
+  }
+  .ledger thead th:first-child { border-left: 1px solid var(--input); border-top-left-radius: calc(var(--radius) - 2px); padding-left: 1rem; }
+  .ledger thead th:last-child { border-right: 1px solid var(--input); border-top-right-radius: calc(var(--radius) - 2px); }
+  .ledger thead th.num { text-align: right; }
+
+  .ledger tbody td {
+    padding: 0.8rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .ledger tbody td:first-child { padding-left: 1rem; }
+  .ledger tbody tr:last-child td { border-bottom: 2px solid var(--input); } /* the closing rule */
+  .ledger tbody tr:hover td { background: var(--accent); }                  /* tonal, never teal */
+
+  /* --- Metric cell --- */
+  .metric { min-width: 11rem; }
+  .metric__label { font-weight: 500; }
+  .metric__hint { font-size: 12px; color: var(--muted-foreground); margin-top: 0.1rem; }
+
+  /* --- Value cell: the figure is the protagonist --- */
+  .val { text-align: right; min-width: 8.5rem; }
+  .val__num {
+    font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums slashed-zero;
+    font-weight: 500; font-size: 15px; letter-spacing: -0.01em;
+    white-space: nowrap;
+  }
+  .val__unit { font-size: 11.5px; color: var(--muted-foreground); margin-left: 0.3rem; font-family: Geist, sans-serif; }
+  .val__formula {
+    font-size: 11.5px; color: var(--muted-foreground); margin-top: 0.2rem;
+    font-family: "Geist Mono", ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .val--none { color: var(--muted-foreground); font-size: 13.5px; }
+
+  /* --- Period --- */
+  .period { color: var(--muted-foreground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  /* --- Confidence: dot + word; derived = outline badge per design.md --- */
+  .conf { white-space: nowrap; }
+  .conf-dot { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 13px; font-weight: 500; }
+  .conf-dot::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: currentColor; flex: none; }
+  .conf--high { color: var(--success); }
+  .conf--medium { color: var(--warning); }
+  .conf--low { color: var(--muted-foreground); }
+  .badge-outline {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 500; line-height: 1;
+    color: var(--muted-foreground);
+    border: 1px solid var(--border);
+    background: var(--card);
+    box-shadow: inset 0 1px 0 var(--lit);
+    padding: 0.28rem 0.5rem; border-radius: 999px;
+  }
+  .conf .none, .period .none { color: var(--muted-foreground); }
+
+  /* --- Source: provenance link or marker, excerpt as a ruled quote --- */
+  .src { width: 38%; min-width: 16rem; }
+  .src__link { display: inline-flex; align-items: center; gap: 0.3rem; font-weight: 500; }
+  .src__link:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .src__link svg { width: 0.75rem; height: 0.75rem; flex: none; }
+  .src__marker { color: var(--muted-foreground); }
+  .src__quote {
+    display: block; margin: 0.35rem 0 0; padding-left: 0.6rem;
+    border-left: 2px solid var(--border);
+    font-size: 12px; color: var(--muted-foreground); font-style: normal;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .src__quote q { quotes: "“" "”"; }
+
+  tr.is-empty .metric__label { color: var(--muted-foreground); font-weight: 400; }
+
+  .card__foot {
+    padding: 0.75rem 1.5rem 1.125rem; font-size: 12.5px; color: var(--muted-foreground);
+    display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  }
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
+  .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+  .legend i { font-style: normal; font-family: "Geist Mono", ui-monospace, monospace; }
+
+  /* ======================================================================
+     Mobile: below 52rem the table reflows into per-metric blocks.
+     Header row hides; each row becomes a small ruled card; cells get
+     their column label from data-col.
+     ====================================================================== */
+  @media (max-width: 52rem) {
+    .ledger, .ledger tbody, .ledger tr, .ledger td { display: block; }
+    .ledger thead { display: none; }
+    .ledger tbody tr {
+      border: 1px solid var(--border); border-top-color: var(--lit);
+      box-shadow: inset 0 1px 0 var(--lit);
+      border-radius: calc(var(--radius) - 2px);
+      margin-bottom: 0.625rem;
+      padding: 0.25rem 0;
+    }
+    .ledger tbody tr:hover td { background: transparent; }
+    .ledger tbody td { border-bottom: 0; padding: 0.35rem 1rem; min-width: 0; width: auto; }
+    .ledger tbody tr:last-child td { border-bottom: 0; }
+    .ledger tbody td:first-child { padding-top: 0.75rem; }
+    .ledger tbody td:last-child { padding-bottom: 0.75rem; }
+    .val { text-align: left; }
+    .val__num { font-size: 17px; }
+    .val__formula { white-space: normal; }
+    td[data-col]::before {
+      content: attr(data-col);
+      display: block;
+      font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+      color: var(--muted-foreground); font-weight: 500; margin-bottom: 0.15rem;
+    }
+    td.metric[data-col]::before { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="spec">
+    <strong>KPI ledger — report table</strong>
+    <span>light only · Geist / Geist Mono figures · tokens from <code>context/design.md</code> · derived-row spec per design.md</span>
+  </div>
+
+  <!-- ============================ STATE A: mixed provenance ============================ -->
+  <section class="card" aria-labelledby="ledger-title">
+    <header class="card__head">
+      <div>
+        <div class="stage">Stage 2</div>
+        <h2 class="card__title" id="ledger-title">KPI ledger</h2>
+      </div>
+      <div class="card__meta"><b>5</b> of 7 metrics filled · reporting period <b>FY 2025</b></div>
+    </header>
+
+    <div class="ledger-wrap">
+      <div class="ledger-scroll">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col" class="num">Value</th>
+              <th scope="col">Period</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- web-found, high -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">TRIR</div>
+                <div class="metric__hint">Per 1'000'000 hours worked</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val__num">2.5</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--high">high</span></td>
+              <td class="src" data-col="Source">
+                <a class="src__link" href="#src-trir">acme-chemie.ch
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.5v9h9V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"/></svg>
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+                <span class="src__quote"><q>Our total recordable incident rate improved to 2.5 per million hours worked in the reporting year.</q></span>
+              </td>
+            </tr>
+            <!-- web-found, high -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">LTIFR</div>
+                <div class="metric__hint">Per 1'000'000 hours worked</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val__num">0.83</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--high">high</span></td>
+              <td class="src" data-col="Source">
+                <a class="src__link" href="#src-ltifr">acme-chemie.ch
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.5v9h9V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"/></svg>
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+                <span class="src__quote"><q>Lost time injury frequency rate: 0.83 (2024: 1.10).</q></span>
+              </td>
+            </tr>
+            <!-- derived: ≈ value, formula line, outline badge, no URL/excerpt (design.md) -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">Recordable injuries</div>
+                <div class="metric__hint">Count, past year</div>
+              </td>
+              <td class="val" data-col="Value">
+                <span class="val__num">≈ 6</span>
+                <div class="val__formula">TRIR 2.5 × 2'400'000 h ÷ 1'000'000</div>
+              </td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="badge-outline">derived</span></td>
+              <td class="src" data-col="Source"><span class="src__marker">Derived from TRIR and Hours worked</span></td>
+            </tr>
+            <!-- client-provided -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">Lost-time injuries</div>
+                <div class="metric__hint">Count, past year</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val__num">2</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--high">high</span></td>
+              <td class="src" data-col="Source"><span class="src__marker">Client-provided</span></td>
+            </tr>
+            <!-- uploaded report, medium -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">Fatalities</div>
+                <div class="metric__hint">Count, past year</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val__num">0</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--medium">medium</span></td>
+              <td class="src" data-col="Source">
+                <span class="src__marker">Uploaded report</span>
+                <span class="src__quote"><q>No work-related fatalities occurred at any site during the period under review.</q></span>
+              </td>
+            </tr>
+            <!-- not disclosed -->
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">Near misses</div>
+                <div class="metric__hint">Count, past year</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+            <!-- web-found, medium, with unit -->
+            <tr>
+              <td class="metric" data-col="Metric">
+                <div class="metric__label">Hours worked</div>
+                <div class="metric__hint">Total hours, past year</div>
+              </td>
+              <td class="val" data-col="Value"><span class="val__num">2'400'000</span><span class="val__unit">h</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--medium">medium</span></td>
+              <td class="src" data-col="Source">
+                <a class="src__link" href="#src-hours">annualreports.com
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 3.5H3.5v9h9V9.5M9.5 2.5h4v4M13 3l-5.5 5.5"/></svg>
+                  <span class="sr-only">(opens in a new tab)</span>
+                </a>
+                <span class="src__quote"><q>…a workforce of approximately 1'250 FTE delivering 2.4 million productive hours.</q></span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="card__foot">
+      <span>Figures are copied from the cited disclosure or supplied by you; nothing is estimated.</span>
+      <span class="legend">
+        <span><i>≈</i> derived at display time, formula shown</span>
+        <span class="conf-dot conf--high">high</span>
+        <span class="conf-dot conf--medium">medium</span>
+        <span class="conf-dot conf--low">low</span>
+      </span>
+    </footer>
+  </section>
+
+  <!-- ============================ STATE B: sparse disclosure ============================ -->
+  <section class="card" aria-labelledby="ledger-sparse-title">
+    <header class="card__head">
+      <div>
+        <div class="stage">Stage 2</div>
+        <h2 class="card__title" id="ledger-sparse-title">KPI ledger</h2>
+      </div>
+      <div class="card__meta"><b>1</b> of 7 metrics filled · reporting period <b>FY 2025</b></div>
+    </header>
+
+    <div class="ledger-wrap">
+      <div class="ledger-scroll">
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th scope="col">Metric</th>
+              <th scope="col" class="num">Value</th>
+              <th scope="col">Period</th>
+              <th scope="col">Confidence</th>
+              <th scope="col">Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric"><div class="metric__label">TRIR</div><div class="metric__hint">Per 1'000'000 hours worked</div></td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric"><div class="metric__label">LTIFR</div><div class="metric__hint">Per 1'000'000 hours worked</div></td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+            <tr>
+              <td class="metric" data-col="Metric"><div class="metric__label">Recordable injuries</div><div class="metric__hint">Count, past year</div></td>
+              <td class="val" data-col="Value"><span class="val__num">4</span></td>
+              <td class="period" data-col="Period">FY 2025</td>
+              <td class="conf" data-col="Confidence"><span class="conf-dot conf--high">high</span></td>
+              <td class="src" data-col="Source"><span class="src__marker">Client-provided</span></td>
+            </tr>
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric"><div class="metric__label">Fatalities</div><div class="metric__hint">Count, past year</div></td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric"><div class="metric__label">Near misses</div><div class="metric__hint">Count, past year</div></td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+            <tr class="is-empty">
+              <td class="metric" data-col="Metric"><div class="metric__label">Hours worked</div><div class="metric__hint">Total hours, past year</div></td>
+              <td class="val" data-col="Value"><span class="val--none">Not disclosed</span></td>
+              <td class="period" data-col="Period"><span class="none">—</span></td>
+              <td class="conf" data-col="Confidence"><span class="none">—</span></td>
+              <td class="src" data-col="Source"><span class="none src__marker">—</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <footer class="card__foot">
+      <span>Little public disclosure was found for this company. Add your own figures to complete the ledger — client values always win.</span>
+    </footer>
+  </section>
+
+</div>
+</body>
+</html>

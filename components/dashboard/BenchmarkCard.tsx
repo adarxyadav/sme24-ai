@@ -59,7 +59,7 @@ export function BenchmarkCard({ benchmark }: { benchmark: Benchmark }) {
         </CardTitle>
         <CardDescription>
           {benchmark.insufficient
-            ? "No peer in this sector discloses a comparable injury rate and no sector reference is published, so the company cannot be placed. The KPI ledger and incident cost above stand on their own."
+            ? "No peer in this sector discloses a comparable injury rate and no sector reference is published, so the company cannot be placed. The KPI ledger and incident cost stand on their own."
             : benchmark.rank !== null
               ? "Rank 1 is the lowest rate. Ranked only against peers disclosing the same metric on the same basis (per 1'000'000 hours worked); nothing is converted."
               : "The company and its peers do not share a rate on the same basis, so no rank is given; the references and the peer table below still apply."}

@@ -132,3 +132,4 @@ Dates = when settled in the old product; all re-confirmed for the rebuild 2026-0
 - **AI expert ranking** (2026-08-17) — rejected: deterministic scoring. Matching is judgment; the rationale doubles as client-facing copy.
 - **CHF loss in code** (2026-08-17) — rejected: an AI cost-estimate stage. No AI-invented francs in a sales document.
 - **Stages 1+2 stay separate** (2026-08-17) — rejected: collapsing into one Parallel task. Separate retry + escalation semantics and a stable state machine outweigh the merge.
+- **No `cancelled` status** (2026-08-27, T-030) — rejected: a distinct terminal for cancelled runs. Only ops can cancel (no user-facing cancel exists), the distinction is already recorded twice (the run's `error` text and the `run cancelled` agent_logs row), and the client copy "Delayed" is honest for both. Revisit when a user-facing cancel ships.

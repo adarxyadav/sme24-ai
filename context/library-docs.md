@@ -4,14 +4,20 @@ Project-specific rules per third-party library — the gotchas and conventions t
 
 ## Tailwind CSS 4
 
-- Dark mode is the default `prefers-color-scheme` variant — no `@custom-variant dark`, no `.dark` class. Tokens flip in `app/globals.css`; app code never writes `dark:`.
+- Dark mode is class-based: `@custom-variant dark (&:is(.dark *))` in `app/globals.css`, tokens flip under `.dark`. The class is owned by next-themes (see below); app code never writes `dark:`.
 - Token table and typography scale: `context/design.md`.
+
+## next-themes
+
+- Owns the `.dark` class on `<html>`: `ThemeProvider` (components/marketing/ThemeProvider.tsx) pins `attribute="class" defaultTheme="light" enableSystem` — light is the default for every visitor; the OS preference applies only when the user picks System in the footer's `ThemeToggle`. Don't change the default or drop `enableSystem` without a ticket.
+- `<html>` carries `suppressHydrationWarning` because next-themes writes the class before hydration; keep it.
+- Anything rendering the *current* theme value client-side needs the mounted guard (`ThemeToggle` shows the pattern) — the server doesn't know the stored choice.
 
 ## shadcn/ui
 
 - Initialised with `components.json`: style `radix-nova`, base color neutral, CSS variables, Lucide icons, aliases `@/components/ui`, `@/lib/utils`.
 - Add primitives with `npx shadcn@latest add <name>`; they land in `components/ui/` and are app-owned — edit freely, but keep semantic token classes only. Register each in `context/ui-registry.md`.
-- The shadcn init's `@custom-variant dark (&:is(.dark *))` line was removed on purpose (see Tailwind above); don't let a future `init` re-add it.
+- The shadcn init's `@custom-variant dark (&:is(.dark *))` line is load-bearing (see Tailwind above) — it was removed pre-T-025 when dark mode was media-query-only, and restored with the theme toggle.
 
 ## Supabase
 
