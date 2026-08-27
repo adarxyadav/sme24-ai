@@ -6,7 +6,6 @@ import { ArrowRight, Loader2, Paperclip, X } from "lucide-react";
 import {
   CANONICAL_METRICS,
   COUNT_METRICS,
-  METRIC_HINTS,
   METRIC_LABELS,
   type CanonicalMetric,
 } from "@/lib/runs/metrics";
@@ -16,7 +15,6 @@ import {
   Field,
   FieldDescription,
   FieldError,
-  FieldGroup,
   FieldLabel,
   FieldLegend,
   FieldSet,
@@ -327,14 +325,20 @@ export function SearchForm() {
             )
           }
         >
-          <FieldSet>
-            <FieldLegend>Your figures</FieldLegend>
-            <FieldDescription>
-              All optional. Anything you leave blank, we research. Your figures
-              override what we find.
-            </FieldDescription>
-            <FieldGroup>
-              <Field className="sm:max-w-56">
+          {/* One shared basis line instead of a hint per field keeps the
+              panel short enough to fit without scrolling (per-metric bases
+              still render in the ledger, lib/portal/ledger.ts). */}
+          <FieldSet className="gap-4">
+            <div className="flex flex-col gap-1">
+              <FieldLegend>Your figures</FieldLegend>
+              <FieldDescription>
+                All optional — we research anything left blank, and your figures
+                override what we find. Rates per 1&#39;000&#39;000 hours worked;
+                counts and hours for the past year.
+              </FieldDescription>
+            </div>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <Field className="gap-1.5">
                 <FieldLabel htmlFor="reportingPeriod">
                   Reporting period
                 </FieldLabel>
@@ -344,31 +348,25 @@ export function SearchForm() {
                   maxLength={100}
                   placeholder="2025"
                 />
-                <FieldDescription>
-                  Applies to every figure below.
-                </FieldDescription>
               </Field>
-              <div className="grid gap-5 sm:grid-cols-2">
-                {CANONICAL_METRICS.map((metric) => (
-                  <Field key={metric}>
-                    <FieldLabel htmlFor={metric}>
-                      {METRIC_LABELS[metric]}
-                    </FieldLabel>
-                    <Input
-                      id={metric}
-                      name={metric}
-                      type="number"
-                      min={0}
-                      step={COUNT_METRIC_SET.has(metric) ? 1 : "any"}
-                      inputMode={
-                        COUNT_METRIC_SET.has(metric) ? "numeric" : "decimal"
-                      }
-                    />
-                    <FieldDescription>{METRIC_HINTS[metric]}</FieldDescription>
-                  </Field>
-                ))}
-              </div>
-            </FieldGroup>
+              {CANONICAL_METRICS.map((metric) => (
+                <Field key={metric} className="gap-1.5">
+                  <FieldLabel htmlFor={metric}>
+                    {METRIC_LABELS[metric]}
+                  </FieldLabel>
+                  <Input
+                    id={metric}
+                    name={metric}
+                    type="number"
+                    min={0}
+                    step={COUNT_METRIC_SET.has(metric) ? 1 : "any"}
+                    inputMode={
+                      COUNT_METRIC_SET.has(metric) ? "numeric" : "decimal"
+                    }
+                  />
+                </Field>
+              ))}
+            </div>
           </FieldSet>
         </div>
       </div>
