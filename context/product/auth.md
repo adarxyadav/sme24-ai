@@ -58,6 +58,7 @@ Identities with the same verified email auto-link to one user (Supabase default)
 - RLS on every table keys on `auth.uid()` from the cookie session; the proxy decides pages, RLS decides rows (`architecture.md` Auth/RLS lists the policies).
 - Service-role client (`lib/supabase/admin.ts`) exists only for `trigger/`, `app/api/webhooks/`, and admin-only Server Actions that must change `profiles.role`. Never imported by a page or a client-role action.
 - An expert reads the runs that matched them through `my_expert_matches()` (`security definer`, company name + rank only); experts never hold a select on `analysis_runs` (t-018-spec.md D3).
+- Admin reads are RLS policies on `is_admin()`; the one admin write (`setExpertStatus`, approve/reject) is a Server Action on the service role after `getUser()` says `admin`. The admin role is set by SQL (t-022-spec.md).
 - Logout: `signOut({ scope: 'local' })` — this device only.
 
 ## Dashboard configuration (not in code)
