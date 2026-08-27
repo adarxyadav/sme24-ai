@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { LogOut } from "lucide-react";
-import { logout } from "@/actions/auth";
 import { SkipLink } from "@/components/a11y/SkipLink";
 import {
   AnalysesNav,
   type AnalysisNavItem,
 } from "@/components/dashboard/AnalysesNav";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
+import { UserMenu } from "@/components/dashboard/UserMenu";
 import { BrandMark } from "@/components/marketing/BrandMark";
-import { ThemeToggle } from "@/components/marketing/ThemeToggle";
-import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
@@ -50,7 +47,7 @@ export async function DashboardShell({
           <Link
             href="/"
             aria-label="SME24 — home"
-            className="flex items-center rounded-md px-2 py-1.5"
+            className="flex items-center rounded-sm px-2 py-1.5"
           >
             <BrandMark className="h-6 w-auto" />
           </Link>
@@ -69,23 +66,7 @@ export async function DashboardShell({
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <ThemeToggle />
-          {email ? (
-            <span className="truncate px-2 text-xs text-muted-foreground">
-              {email}
-            </span>
-          ) : null}
-          <form action={logout}>
-            <Button
-              type="submit"
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start"
-            >
-              <LogOut aria-hidden="true" />
-              Log out
-            </Button>
-          </form>
+          <UserMenu email={email} />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset id="main">
