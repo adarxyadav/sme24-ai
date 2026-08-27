@@ -76,12 +76,12 @@ Each stage is a Trigger.dev task with its own retry; stages chain via `triggerAn
 ### 4 — Expert matchmaking
 - **In:** company risk profile — derived inside the call from KPIs + sector.
 - **Do:** Claude structured call → risk → competency tags → score & rank approved experts. Top-3.
-- **Out:** `expert_matches` rows `{ expert_id, rank, score, rationale }`, replaced as a set in one transaction. Candidates are approved experts only; none → zero rows and the run continues. The run moves `benchmarking -> matching` on entry and `matching -> completed` on exit, until stage 5 takes over.
+- **Out:** `expert_matches` rows `{ expert_id, rank, score, rationale }`, replaced as a set in one transaction. Candidates are approved experts only; none → zero rows and the run continues. The run moves `benchmarking -> matching` on entry and stays there for stage 5.
 
 ### 5 — Proposal generation
 - **In:** research + benchmark + matched experts + package definitions (tier source of truth: `context/product/packages.md`).
 - **Do:** Claude (`Output.object`) drafts the proposal, grounded by EHS Vault retrieval (pgvector); an empty vault degrades to ungrounded drafting — seeding the vault is admin scope, not a pipeline concern. Render with `@react-pdf` → upload to Supabase Storage.
-- **Out:** `proposals` record `{ content jsonb, pdf_path }`. No visibility flag — a proposal is visible iff its run completed; RLS keys on run ownership.
+- **Out:** `proposals` record `{ content jsonb, pdf_path, sources }`. No visibility flag — a proposal is visible iff its run completed; RLS keys on run ownership. The run moves `matching -> generating` on entry and `generating -> completed` on exit — stage 5 is the machine's last mover. The vault query is embedded with one pinned model (`lib/vault/embedding.ts`); the proposal records the passages it relied on as `sources`.
 
 ## Data model
 

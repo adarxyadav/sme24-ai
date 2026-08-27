@@ -8,8 +8,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 // Stage 4 — expert matchmaking (pipeline-rules.md, Stages; t-018-spec.md).
 // Triggered by stage 1 via triggerAndWait after benchmarking. One model call
 // over the approved experts; code validates and writes the top 3 in one
-// transaction. Owns the last two moves of the machine for now:
-// benchmarking -> matching -> completed.
+// transaction. Moves the machine one step, benchmarking -> matching; stage 5
+// claims the run from `matching`.
 
 const STAGE = "matching";
 
@@ -141,23 +141,16 @@ export const expertMatchingTask = task({
       payload: { written, expert_ids: matchedIds, model, usage, risk_summary: riskSummary },
     });
 
-    const { data: completed, error: completeError } = await service
+    // The run stays `matching` for stage 5 to claim; the handle goes back to
+    // the waiting parent first (t-018-spec.md D4).
+    const { error: handBackError } = await service
       .from("analysis_runs")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({ trigger_run_id: ctx.run.parentTaskRunId ?? ctx.run.id })
       .eq("id", runId)
       .eq("status", "matching")
-      .select("id")
-      .maybeSingle<{ id: string }>();
+      .eq("trigger_run_id", ctx.run.id);
 
-    if (completeError) throw new Error(`completion write failed: ${completeError.message}`);
-    if (!completed) throw new Error(`run ${runId} left matching before completion`);
-
-    await agentLog(service, {
-      runId,
-      stage: STAGE,
-      message: LOG_MESSAGES.runCompleted,
-      payload: { matches: written },
-    });
+    if (handBackError) throw new Error(`handle hand-back failed: ${handBackError.message}`);
 
     logger.log("stage 4 complete", { runId, matches: written });
 

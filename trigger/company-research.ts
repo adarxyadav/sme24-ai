@@ -13,6 +13,7 @@ import { COMPANY_RESEARCH_QUEUE } from "@/lib/runs/queues";
 import { kpiExtractionTask } from "@/trigger/kpi-extraction";
 import { peerBenchmarkingTask } from "@/trigger/peer-benchmarking";
 import { expertMatchingTask } from "@/trigger/expert-matching";
+import { proposalGenerationTask } from "@/trigger/proposal-generation";
 
 // Stage 1 — company research (pipeline-rules.md, Stages; t-004-spec.md).
 // Order is the contract's: client KPIs already exist (written by the trigger
@@ -310,7 +311,22 @@ export const companyResearchTask = task({
             { runId },
             { region: "eu-central-1" },
           );
-          if (!matching.ok) {
+          if (matching.ok) {
+            // Stage 5, same contract again.
+            const proposal = await proposalGenerationTask.triggerAndWait(
+              { runId },
+              { region: "eu-central-1" },
+            );
+            if (!proposal.ok) {
+              await agentLog(service, {
+                runId,
+                stage: STAGE,
+                level: "warn",
+                message: LOG_MESSAGES.proposalFailed,
+                payload: { child_run_id: proposal.id, error: String(proposal.error) },
+              });
+            }
+          } else {
             await agentLog(service, {
               runId,
               stage: STAGE,
