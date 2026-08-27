@@ -4,7 +4,7 @@ import { ThemeToggle } from "@/components/marketing/ThemeToggle";
 const LINKS = [
   { href: "/#how-it-works", label: "How it works" },
   { href: "/#packages", label: "Packages" },
-  { href: "/expert/apply", label: "For experts" },
+  { href: "/#for-experts", label: "Expert network" },
   { href: "/login", label: "Log in" },
 ] as const;
 
