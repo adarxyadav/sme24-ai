@@ -122,6 +122,9 @@ export function SearchForm() {
       }
 
       router.push(`/dashboard/runs/${runId}`);
+      // The sidebar's analyses history renders in the layout, which push alone
+      // does not re-fetch — refresh so the new run appears at once (T-035).
+      router.refresh();
     } catch {
       setError("We could not reach the server. Please try again.");
       setPending(false);

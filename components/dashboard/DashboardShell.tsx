@@ -2,6 +2,10 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 import { logout } from "@/actions/auth";
 import { SkipLink } from "@/components/a11y/SkipLink";
+import {
+  AnalysesNav,
+  type AnalysisNavItem,
+} from "@/components/dashboard/AnalysesNav";
 import { DashboardNav } from "@/components/dashboard/DashboardNav";
 import { BrandMark } from "@/components/marketing/BrandMark";
 import { ThemeToggle } from "@/components/marketing/ThemeToggle";
@@ -12,6 +16,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarProvider,
@@ -23,10 +28,12 @@ import type { UserRole } from "@/lib/auth/get-user";
 export function DashboardShell({
   email,
   role,
+  runs,
   children,
 }: {
   email: string | null;
   role: UserRole;
+  runs: AnalysisNavItem[];
   children: React.ReactNode;
 }) {
   return (
@@ -46,6 +53,12 @@ export function DashboardShell({
           <SidebarGroup>
             <SidebarGroupContent>
               <DashboardNav role={role} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>Analyses</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <AnalysesNav runs={runs} />
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

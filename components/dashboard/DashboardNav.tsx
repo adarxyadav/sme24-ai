@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Briefcase, LayoutDashboard, Plus, Shield } from "lucide-react";
+import { Briefcase, Plus, Shield } from "lucide-react";
 import {
   SidebarMenu,
   SidebarMenuButton,
@@ -14,15 +14,14 @@ import type { UserRole } from "@/lib/auth/get-user";
 type NavItem = {
   title: string;
   href: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof Plus;
   exact?: boolean;
 };
 
 // New search is the dashboard's default page (T-034), so it matches exactly;
-// Your analyses stays active across the run detail pages by prefix.
+// the run history lives in AnalysesNav (T-035).
 const BASE_ITEMS: NavItem[] = [
   { title: "New search", href: "/dashboard", icon: Plus, exact: true },
-  { title: "Your analyses", href: "/dashboard/runs", icon: LayoutDashboard },
 ];
 
 // Only roles that own a surface get its link; a client sees neither.
