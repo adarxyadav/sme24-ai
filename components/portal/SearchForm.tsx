@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2, Paperclip, Plus, X } from "lucide-react";
 import {
@@ -45,12 +45,14 @@ function collectKpis(form: FormData): KpiPayload[] {
 // A quiet disclosure toggle in the composer's footer. The teal dot marks a
 // collapsed section that still holds typed values — nothing typed is lost.
 function DisclosureChip({
+  id,
   label,
   controls,
   expanded,
   filled,
   onClick,
 }: {
+  id: string;
   label: string;
   controls: string;
   expanded: boolean;
@@ -59,6 +61,7 @@ function DisclosureChip({
 }) {
   return (
     <Button
+      id={id}
       type="button"
       variant="ghost"
       size="sm"
@@ -90,6 +93,51 @@ export function SearchForm() {
   const [figuresFilled, setFiguresFilled] = useState(false);
   const [attachedName, setAttachedName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // The disclosures float over the page like a menu, so they close like one:
+  // Escape (focus returns to the chip) and any press outside the composer.
+  useEffect(() => {
+    if (!websiteOpen && !figuresOpen) return;
+    const chipId = websiteOpen ? "chip-website" : "chip-figures";
+    const close = () => {
+      setWebsiteOpen(false);
+      setFiguresOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      close();
+      document.getElementById(chipId)?.focus();
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (
+        formRef.current &&
+        event.target instanceof Node &&
+        !formRef.current.contains(event.target)
+      ) {
+        close();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [websiteOpen, figuresOpen]);
+
+  function toggleSection(section: "website" | "figures") {
+    const open = section === "website" ? websiteOpen : figuresOpen;
+    setWebsiteOpen(section === "website" && !open);
+    setFiguresOpen(section === "figures" && !open);
+    if (!open) {
+      requestAnimationFrame(() =>
+        document
+          .getElementById(section === "website" ? "companyDomain" : "reportingPeriod")
+          ?.focus(),
+      );
+    }
+  }
 
   function removeAttachment() {
     if (fileRef.current) fileRef.current.value = "";
@@ -177,11 +225,12 @@ export function SearchForm() {
 
   return (
     <form
+      ref={formRef}
       onSubmit={onSubmit}
       className="flex w-full max-w-2xl flex-col gap-4"
       noValidate={false}
     >
-      <div className="rounded-xl border bg-card transition-shadow focus-within:border-input focus-within:ring-2 focus-within:ring-ring/30">
+      <div className="relative rounded-xl border bg-card transition-shadow focus-within:border-input focus-within:ring-2 focus-within:ring-ring/30">
         <input
           name="companyName"
           type="text"
@@ -237,18 +286,20 @@ export function SearchForm() {
             <Paperclip aria-hidden="true" className="size-4" />
           </Button>
           <DisclosureChip
+            id="chip-website"
             label="Website"
             controls="composer-website"
             expanded={websiteOpen}
             filled={websiteFilled}
-            onClick={() => setWebsiteOpen((open) => !open)}
+            onClick={() => toggleSection("website")}
           />
           <DisclosureChip
+            id="chip-figures"
             label="Your figures"
             controls="composer-figures"
             expanded={figuresOpen}
             filled={figuresFilled}
-            onClick={() => setFiguresOpen((open) => !open)}
+            onClick={() => toggleSection("figures")}
           />
           <Button
             type="submit"
@@ -265,11 +316,12 @@ export function SearchForm() {
           </Button>
         </div>
 
-        {/* Collapsed sections stay mounted so their typed values still submit. */}
+        {/* Closed sections stay mounted so their typed values still submit;
+            open, they float below the bar — the composer itself never grows. */}
         <div
           id="composer-website"
           hidden={!websiteOpen}
-          className="border-t px-5 py-4"
+          className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border bg-popover p-5 text-popover-foreground"
         >
           <Field
             onInput={(event) =>
@@ -295,7 +347,7 @@ export function SearchForm() {
         <div
           id="composer-figures"
           hidden={!figuresOpen}
-          className="border-t px-5 py-4"
+          className="absolute inset-x-0 top-full z-20 mt-2 max-h-[min(26rem,60vh)] overflow-y-auto rounded-xl border bg-popover p-5 text-popover-foreground"
           onInput={(event) =>
             setFiguresFilled(
               Array.from(event.currentTarget.querySelectorAll("input")).some(
