@@ -4,9 +4,9 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-// A quiet disclosure toggle in the composer's footer. A closed section that
-// still holds typed values marks the chip — a count when the section can hold
-// several figures, a teal dot otherwise — so nothing typed ever looks lost.
+// A quiet disclosure toggle in the composer's footer. A closed section stays
+// mounted with its typed values, so the chip marks what it holds — nothing
+// typed ever looks lost.
 export function DisclosureChip({
   id,
   label,

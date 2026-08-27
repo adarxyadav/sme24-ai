@@ -85,10 +85,9 @@ export function SearchForm() {
   ).length;
   const periodFilled = period.trim() !== "";
 
-  // The disclosures float over the page like a menu, so they close like one:
-  // Escape (focus returns to the chip) and any press outside the composer.
-  // The open panel is also fitted to the viewport — max-height measured from
-  // its top edge to the fold — so it can never clip past the screen.
+  // The disclosures float over the page like a menu, so they close like one,
+  // and the open panel is fitted to the viewport rather than clipping past
+  // the fold.
   useEffect(() => {
     if (!websiteOpen && !figuresOpen) return;
     const chipId = websiteOpen ? "chip-website" : "chip-figures";
@@ -163,6 +162,19 @@ export function SearchForm() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    // Counts are integers in the run contract (the route rejects fractions,
+    // and rounding would invent a figure) — name the field here instead of
+    // failing the whole run with the route's generic 400.
+    const fractionalCount = COUNT_METRICS.find((metric) => {
+      const value = parseLocaleNumber(figures[metric]);
+      return value !== null && !Number.isInteger(value);
+    });
+    if (fractionalCount) {
+      setError(`${METRIC_LABELS[fractionalCount]} must be a whole number.`);
+      return;
+    }
+
     setPending(true);
 
     const form = new FormData(event.currentTarget);
@@ -371,11 +383,6 @@ export function SearchForm() {
           hidden={!figuresOpen}
           className="absolute inset-x-0 top-full z-20 mt-2 max-h-[min(32rem,60vh)] overflow-y-auto rounded-xl border bg-popover px-5 pt-4 pb-5 text-popover-foreground"
         >
-          {/* A quiet ledger: single-line rows (label left, ValueInput cell
-              right), one caption per basis group instead of a subtitle on
-              every row, the reporting period as the first row in the same
-              cell grammar. Filled rows scan at a glance — the cell lifts to
-              card when it holds a value. */}
           <FieldSet className="gap-2">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <FieldLegend variant="label">Your figures</FieldLegend>

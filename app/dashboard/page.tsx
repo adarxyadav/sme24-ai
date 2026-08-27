@@ -14,14 +14,9 @@ export default function NewSearchPage() {
     // Upper third, not centered: the figures panel needs guaranteed room below
     // the bar, and an anchored block never re-centers on state changes.
     <div className="flex flex-1 flex-col items-center gap-8 pt-[8svh] sm:pt-[14svh]">
-      <header className="flex flex-col items-center gap-1.5 text-center">
-        <h1 className="text-2xl font-medium tracking-tight sm:text-[1.65rem]">
-          Benchmark your safety performance
-        </h1>
-        <p className="text-muted-foreground">
-          Company name in, free report out. Figures optional.
-        </p>
-      </header>
+      <h1 className="text-center text-2xl font-medium tracking-tight sm:text-[1.65rem]">
+        Benchmark your safety performance
+      </h1>
       <SearchForm />
     </div>
   );

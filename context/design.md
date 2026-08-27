@@ -13,7 +13,7 @@ Dark mode is class-based: the same `:root` variables are re-assigned under `.dar
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
 | `background` / `foreground` | cream `oklch(0.989 0.003 49)` / warm ink `oklch(0.264 0.013 94)` | warm near-black `oklch(0.21 0.006 80)` / dim cream | page ground and body text |
-| `card`, `popover` (+ `-foreground`) | cream (elevation by hairline, not tone) | one step raised | panels, KPI tiles, menus |
+| `card`, `popover` (+ `-foreground`) | white `oklch(1 0 0)` — one tonal step above the cream canvas, hairline kept | one step raised | panels, KPI tiles, menus |
 | `primary` / `primary-foreground` | teal `oklch(0.478 0.081 203)` (#016a71) / cream | bright teal `oklch(0.646 0.110 203)` (#00a1ac) / near-black | the only brand color — primary action, focus, brand mark, links |
 | `secondary` / `secondary-foreground` | warm stone `oklch(0.892 0.010 88)` | mid warm | secondary actions, chips |
 | `muted` / `muted-foreground` | light stone / warm grey `oklch(0.50 0.014 90)` | dark warm / light warm grey | de-emphasised surfaces, supporting text |
@@ -26,9 +26,9 @@ Dark mode is class-based: the same `:root` variables are re-assigned under `.dar
 | `chart-1…5` | teal, bright teal, pale teal, warm grey, stone | reversed teal steps, then warm greys | charts; untuned |
 | `sidebar-*` | cream-stone set, active item = ink | dark warm set, active item = cream | dashboard sidebar (reserved); active state tonal, not teal |
 
-Status tokens are text-safe on `background` in both modes (≥ 4.5:1, checked) and carry `text-background` when used as fills. Elevation is hairline-only — no drop shadows.
+Status tokens are text-safe on `background` in both modes (≥ 4.5:1, checked) and carry `text-background` when used as fills. Elevation is the hairline plus one tonal step (white `card`/`popover` on the cream canvas) — no drop shadows.
 
-Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it. Small controls `rounded-md`, panels `rounded-lg`/`rounded-xl`. One exception (T-037, owner-approved): the search composer's own controls — disclosure chips, attachment chip, submit circle — are pills (`rounded-full`); the composer panel stays `rounded-xl`. The pill grammar belongs to the composer alone and does not travel to other surfaces.
+Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it. Small controls (buttons, inputs, value cells) `rounded-sm`, panels `rounded-lg`/`rounded-xl`. One exception (T-037, owner-approved): the search composer's own controls — disclosure chips, attachment chip, submit circle — are pills (`rounded-full`); the composer panel stays `rounded-xl`. The pill grammar belongs to the composer alone and does not travel to other surfaces.
 
 ## Dashboard composition rules
 
@@ -44,7 +44,7 @@ A figure computed at display time from stored rows (`kpi-contract.md`, Derivatio
 
 ### Shell
 
-`/dashboard` renders inside `DashboardShell`, not `SiteShell` (T-033): a shadcn sidebar (offcanvas below `md`, collapse state in a cookie) plus a slim top bar carrying only the sidebar trigger; page content sits in a `max-w-5xl` column. Sidebar chrome uses the `sidebar-*` tokens exclusively — the active nav item is tonal (`sidebar-accent`), never teal. On this surface the sidebar footer owns the theme toggle, the account identity and Log out; `SiteFooter` does not render. The run history lives only in the sidebar's "Analyses" group, chat-history style (T-035) — one truncated company name per run, no status decoration; state belongs to the run page.
+`/dashboard` renders inside `DashboardShell`, not `SiteShell` (T-033): a shadcn sidebar (offcanvas below `md`, collapse state in a cookie) plus a slim top bar carrying only the sidebar trigger; page content sits in a `max-w-5xl` column. Sidebar chrome uses the `sidebar-*` tokens exclusively — the active nav item is tonal (`sidebar-accent`), never teal. On this surface the sidebar footer is a single account menu (`UserMenu`, T-038): avatar initial + email + chevron opening a dropdown that holds the theme choice and Log out; `SiteFooter` does not render (its `ThemeToggle` stays on the marketing surface). The run history lives only in the sidebar's "Analyses" group, chat-history style (T-035) — one truncated company name per run, no status decoration; state belongs to the run page.
 
 ### Intake
 
