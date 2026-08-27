@@ -2,85 +2,68 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Loader2, Paperclip, Plus, X } from "lucide-react";
+import { ArrowRight, CircleAlert, Loader2, Paperclip, X } from "lucide-react";
 import {
   CANONICAL_METRICS,
   COUNT_METRICS,
-  METRIC_HINTS,
   METRIC_LABELS,
+  RATE_METRICS,
   type CanonicalMetric,
 } from "@/lib/runs/metrics";
 import { Button } from "@/components/ui/button";
+import { DisclosureChip } from "@/components/portal/DisclosureChip";
 import {
   Field,
   FieldDescription,
   FieldError,
-  FieldGroup,
   FieldLabel,
   FieldLegend,
   FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import {
+  ValueInput,
+  parseLocaleNumber,
+} from "@/components/portal/ValueInput";
 
 type KpiPayload = { metric: CanonicalMetric; value: number };
 
-const COUNT_METRIC_SET = new Set<string>(COUNT_METRICS);
+// A placeholder is a realistic example value — it teaches the expected format
+// and magnitude, never an instruction (the basis lives in the group caption).
+const METRIC_PLACEHOLDERS: Record<CanonicalMetric, string> = {
+  TRIR: "1.2",
+  LTIFR: "0.8",
+  total_recordable_injuries: "4",
+  lost_time_injuries: "2",
+  fatalities: "0",
+  near_misses: "120",
+  hours_worked: "500'000",
+};
 
-// Blank means "not supplied" and is dropped, never sent as an empty string: the
-// route rejects "" rather than coercing it, so a zero is only ever recorded
-// because the client typed one (t-003-spec.md D7).
-function collectKpis(form: FormData): KpiPayload[] {
+// One caption per group instead of a basis subtitle on every row — the two
+// bases the contract knows are the only repetition the ledger would carry.
+const METRIC_GROUPS: { id: string; caption: string; metrics: readonly CanonicalMetric[] }[] = [
+  { id: "figures-basis-rates", caption: "Per 1'000'000 hours worked", metrics: RATE_METRICS },
+  { id: "figures-basis-year", caption: "Past year", metrics: COUNT_METRICS },
+];
+
+// fromEntries widens the key type; the entries are exactly the canonical set.
+const EMPTY_FIGURES = Object.fromEntries(
+  CANONICAL_METRICS.map((metric) => [metric, ""]),
+) as Record<CanonicalMetric, string>;
+
+// Blank or unparseable means "not supplied" and is dropped, never sent as an
+// empty string: the route rejects "" rather than coercing it, so a zero is
+// only ever recorded because the client typed one (t-003-spec.md D7). The
+// tolerant parser accepts locale formatting; it never blocks submit.
+function collectKpis(figures: Record<CanonicalMetric, string>): KpiPayload[] {
   const kpis: KpiPayload[] = [];
   for (const metric of CANONICAL_METRICS) {
-    const raw = form.get(metric);
-    if (typeof raw !== "string" || raw.trim() === "") continue;
-    const value = Number(raw);
-    if (!Number.isFinite(value)) continue;
+    const value = parseLocaleNumber(figures[metric]);
+    if (value === null) continue;
     kpis.push({ metric, value });
   }
   return kpis;
-}
-
-// A quiet disclosure toggle in the composer's footer. The teal dot marks a
-// collapsed section that still holds typed values — nothing typed is lost.
-function DisclosureChip({
-  id,
-  label,
-  controls,
-  expanded,
-  filled,
-  onClick,
-}: {
-  id: string;
-  label: string;
-  controls: string;
-  expanded: boolean;
-  filled: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Button
-      id={id}
-      type="button"
-      variant="ghost"
-      size="sm"
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onClick}
-      className={cn(
-        "rounded-full font-normal text-muted-foreground",
-        expanded && "bg-accent text-foreground",
-      )}
-    >
-      {filled && !expanded ? (
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-      ) : (
-        <Plus aria-hidden="true" className="size-3.5" />
-      )}
-      {label}
-    </Button>
-  );
 }
 
 export function SearchForm() {
@@ -90,16 +73,33 @@ export function SearchForm() {
   const [websiteOpen, setWebsiteOpen] = useState(false);
   const [figuresOpen, setFiguresOpen] = useState(false);
   const [websiteFilled, setWebsiteFilled] = useState(false);
-  const [figuresFilled, setFiguresFilled] = useState(false);
+  const [figures, setFigures] = useState(EMPTY_FIGURES);
+  const [period, setPeriod] = useState("");
   const [attachedName, setAttachedName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+  const figureRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const figuresCount = CANONICAL_METRICS.filter(
+    (metric) => figures[metric].trim() !== "",
+  ).length;
+  const periodFilled = period.trim() !== "";
 
   // The disclosures float over the page like a menu, so they close like one:
   // Escape (focus returns to the chip) and any press outside the composer.
+  // The open panel is also fitted to the viewport — max-height measured from
+  // its top edge to the fold — so it can never clip past the screen.
   useEffect(() => {
     if (!websiteOpen && !figuresOpen) return;
     const chipId = websiteOpen ? "chip-website" : "chip-figures";
+    const sectionId = websiteOpen ? "composer-website" : "composer-figures";
+    const fit = () => {
+      const panel = document.getElementById(sectionId);
+      if (!panel) return;
+      const room = window.innerHeight - panel.getBoundingClientRect().top - 16;
+      panel.style.maxHeight = `${Math.min(512, Math.max(160, room))}px`;
+    };
+    fit();
     const close = () => {
       setWebsiteOpen(false);
       setFiguresOpen(false);
@@ -120,9 +120,11 @@ export function SearchForm() {
     };
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("resize", fit);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("resize", fit);
     };
   }, [websiteOpen, figuresOpen]);
 
@@ -131,12 +133,26 @@ export function SearchForm() {
     setWebsiteOpen(section === "website" && !open);
     setFiguresOpen(section === "figures" && !open);
     if (!open) {
-      requestAnimationFrame(() =>
+      // Focus the first field, but never steal from a field the user has
+      // already reached on their own in the meantime.
+      requestAnimationFrame(() => {
+        const active = document.activeElement;
+        if (active instanceof HTMLInputElement) return;
         document
           .getElementById(section === "website" ? "companyDomain" : "reportingPeriod")
-          ?.focus(),
-      );
+          ?.focus();
+      });
     }
+  }
+
+  // Enter advances through the ledger like rows in a sheet (the reporting
+  // period is row -1); on the last row it falls through to the form's
+  // implicit submission.
+  function onFigureKeyDown(event: React.KeyboardEvent, index: number) {
+    if (event.key !== "Enter") return;
+    if (index === CANONICAL_METRICS.length - 1) return;
+    event.preventDefault();
+    figureRefs.current[index + 1]?.focus();
   }
 
   function removeAttachment() {
@@ -151,7 +167,7 @@ export function SearchForm() {
 
     const form = new FormData(event.currentTarget);
     const companyDomain = String(form.get("companyDomain") ?? "").trim();
-    const reportingPeriod = String(form.get("reportingPeriod") ?? "").trim();
+    const reportingPeriod = period.trim();
     const report = form.get("report");
 
     try {
@@ -186,7 +202,7 @@ export function SearchForm() {
           ...(companyDomain ? { companyDomain } : {}),
           ...(reportingPeriod ? { reportingPeriod } : {}),
           ...(uploadedReportPath ? { uploadedReportPath } : {}),
-          kpis: collectKpis(form),
+          kpis: collectKpis(figures),
         }),
       });
 
@@ -230,90 +246,96 @@ export function SearchForm() {
       className="flex w-full max-w-2xl flex-col gap-4"
       noValidate={false}
     >
-      <div className="relative rounded-xl border bg-card transition-shadow focus-within:border-input focus-within:ring-2 focus-within:ring-ring/30">
-        <input
-          name="companyName"
-          type="text"
-          required
-          maxLength={200}
-          autoComplete="organization"
-          autoFocus
-          aria-label="Company name"
-          placeholder="Company name"
-          className="w-full bg-transparent px-5 pt-4 pb-1 text-lg outline-none placeholder:text-muted-foreground"
-        />
-
-        {attachedName ? (
-          <div className="flex flex-wrap gap-1.5 px-4 pt-1.5">
-            <span className="flex items-center gap-2 rounded-full border py-1 pr-1.5 pl-3 text-xs">
-              <Paperclip aria-hidden="true" className="size-3 text-muted-foreground" />
-              <span className="max-w-64 truncate">{attachedName}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Remove attached report"
-                onClick={removeAttachment}
-                className="size-5 rounded-full text-muted-foreground"
-              >
-                <X aria-hidden="true" className="size-3" />
-              </Button>
-            </span>
-          </div>
-        ) : null}
-
-        <div className="flex items-center gap-1 p-3 pt-2">
+      <div className="relative">
+        {/* The panels are siblings of the bar, not children, so the bar's
+            focus ring reflects only its own fields — a panel holding focus
+            leaves the bar at rest. */}
+        <div className="rounded-xl border bg-card transition-[border-color,box-shadow] focus-within:border-input focus-within:ring-2 focus-within:ring-ring/30">
           <input
-            ref={fileRef}
-            id="report"
-            name="report"
-            type="file"
-            accept="application/pdf"
-            className="hidden"
-            tabIndex={-1}
-            onChange={(event) =>
-              setAttachedName(event.currentTarget.files?.[0]?.name ?? null)
-            }
+            name="companyName"
+            type="text"
+            required
+            maxLength={200}
+            autoComplete="organization"
+            autoFocus
+            aria-label="Company name"
+            placeholder="Company name"
+            className="w-full bg-transparent px-5 pt-4 pb-1 text-lg outline-none placeholder:text-muted-foreground"
           />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label="Attach your latest safety report (PDF)"
-            onClick={() => fileRef.current?.click()}
-            className="rounded-full text-muted-foreground"
-          >
-            <Paperclip aria-hidden="true" className="size-4" />
-          </Button>
-          <DisclosureChip
-            id="chip-website"
-            label="Website"
-            controls="composer-website"
-            expanded={websiteOpen}
-            filled={websiteFilled}
-            onClick={() => toggleSection("website")}
-          />
-          <DisclosureChip
-            id="chip-figures"
-            label="Your figures"
-            controls="composer-figures"
-            expanded={figuresOpen}
-            filled={figuresFilled}
-            onClick={() => toggleSection("figures")}
-          />
-          <Button
-            type="submit"
-            size="icon"
-            disabled={pending}
-            aria-label="Run the analysis"
-            className="ml-auto rounded-full"
-          >
-            {pending ? (
-              <Loader2 aria-hidden="true" className="size-4 animate-spin" />
-            ) : (
-              <ArrowRight aria-hidden="true" className="size-4" />
-            )}
-          </Button>
+
+          {attachedName ? (
+            <div className="flex flex-wrap gap-1.5 px-4 pt-1.5">
+              <span className="flex items-center gap-2 rounded-full border py-1 pr-1.5 pl-3 text-xs">
+                <Paperclip aria-hidden="true" className="size-3 text-muted-foreground" />
+                <span className="max-w-64 truncate">{attachedName}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Remove attached report"
+                  onClick={removeAttachment}
+                  className="size-5 rounded-full text-muted-foreground"
+                >
+                  <X aria-hidden="true" className="size-3" />
+                </Button>
+              </span>
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-1 p-3 pt-2">
+            <input
+              ref={fileRef}
+              id="report"
+              name="report"
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              tabIndex={-1}
+              onChange={(event) =>
+                setAttachedName(event.currentTarget.files?.[0]?.name ?? null)
+              }
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Attach your latest safety report (PDF)"
+              onClick={() => fileRef.current?.click()}
+              className="rounded-full text-muted-foreground"
+            >
+              <Paperclip aria-hidden="true" className="size-4" />
+            </Button>
+            <DisclosureChip
+              id="chip-website"
+              label="Website"
+              controls="composer-website"
+              expanded={websiteOpen}
+              filled={websiteFilled}
+              onClick={() => toggleSection("website")}
+            />
+            <DisclosureChip
+              id="chip-figures"
+              label="Your figures"
+              controls="composer-figures"
+              expanded={figuresOpen}
+              filled={figuresCount > 0 || periodFilled}
+              count={figuresCount}
+              onClick={() => toggleSection("figures")}
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={pending}
+              aria-label="Run the analysis"
+              className="ml-auto rounded-full"
+            >
+              {pending ? (
+                <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+              ) : (
+                <ArrowRight aria-hidden="true" className="size-4" />
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Closed sections stay mounted so their typed values still submit;
@@ -321,7 +343,7 @@ export function SearchForm() {
         <div
           id="composer-website"
           hidden={!websiteOpen}
-          className="absolute inset-x-0 top-full z-20 mt-2 rounded-xl border bg-popover p-5 text-popover-foreground"
+          className="absolute inset-x-0 top-full z-20 mt-2 overflow-y-auto rounded-xl border bg-popover px-5 pt-4 pb-5 text-popover-foreground"
         >
           <Field
             onInput={(event) =>
@@ -347,63 +369,96 @@ export function SearchForm() {
         <div
           id="composer-figures"
           hidden={!figuresOpen}
-          className="absolute inset-x-0 top-full z-20 mt-2 max-h-[min(26rem,60vh)] overflow-y-auto rounded-xl border bg-popover p-5 text-popover-foreground"
-          onInput={(event) =>
-            setFiguresFilled(
-              Array.from(event.currentTarget.querySelectorAll("input")).some(
-                (input) => input.value.trim() !== "",
-              ),
-            )
-          }
+          className="absolute inset-x-0 top-full z-20 mt-2 max-h-[min(32rem,60vh)] overflow-y-auto rounded-xl border bg-popover px-5 pt-4 pb-5 text-popover-foreground"
         >
-          <FieldSet>
-            <FieldLegend>Your figures</FieldLegend>
-            <FieldDescription>
-              All optional. Anything you leave blank, we research. Your figures
-              override what we find.
-            </FieldDescription>
-            <FieldGroup>
-              <Field className="sm:max-w-56">
+          {/* A quiet ledger: single-line rows (label left, ValueInput cell
+              right), one caption per basis group instead of a subtitle on
+              every row, the reporting period as the first row in the same
+              cell grammar. Filled rows scan at a glance — the cell lifts to
+              card when it holds a value. */}
+          <FieldSet className="gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <FieldLegend variant="label">Your figures</FieldLegend>
+              {figuresCount > 0 ? (
+                <span className="text-xs text-muted-foreground">
+                  {figuresCount} added
+                </span>
+              ) : null}
+            </div>
+            <div>
+              <div className="flex items-center justify-between gap-4 py-0.5">
                 <FieldLabel htmlFor="reportingPeriod">
                   Reporting period
                 </FieldLabel>
-                <Input
+                <ValueInput
                   id="reportingPeriod"
                   name="reportingPeriod"
+                  inputMode="text"
                   maxLength={100}
+                  value={period}
+                  onChange={(event) => setPeriod(event.target.value)}
+                  onKeyDown={(event) => onFigureKeyDown(event, -1)}
                   placeholder="2025"
+                  className="w-28 shrink-0"
                 />
-                <FieldDescription>
-                  Applies to every figure below.
-                </FieldDescription>
-              </Field>
-              <div className="grid gap-5 sm:grid-cols-2">
-                {CANONICAL_METRICS.map((metric) => (
-                  <Field key={metric}>
-                    <FieldLabel htmlFor={metric}>
-                      {METRIC_LABELS[metric]}
-                    </FieldLabel>
-                    <Input
-                      id={metric}
-                      name={metric}
-                      type="number"
-                      min={0}
-                      step={COUNT_METRIC_SET.has(metric) ? 1 : "any"}
-                      inputMode={
-                        COUNT_METRIC_SET.has(metric) ? "numeric" : "decimal"
-                      }
-                    />
-                    <FieldDescription>{METRIC_HINTS[metric]}</FieldDescription>
-                  </Field>
-                ))}
               </div>
-            </FieldGroup>
+              {METRIC_GROUPS.map((group) => (
+                <div key={group.id}>
+                  <p
+                    id={group.id}
+                    className="pt-1.5 pb-0.5 text-xs text-muted-foreground"
+                  >
+                    {group.caption}
+                  </p>
+                  <div className="divide-y divide-border/50">
+                    {group.metrics.map((metric) => {
+                      const index = CANONICAL_METRICS.indexOf(metric);
+                      return (
+                        <div
+                          key={metric}
+                          className="flex items-center justify-between gap-4 py-0.5"
+                        >
+                          <FieldLabel htmlFor={metric}>
+                            {METRIC_LABELS[metric]}
+                          </FieldLabel>
+                          <ValueInput
+                            id={metric}
+                            name={metric}
+                            ref={(el) => {
+                              figureRefs.current[index] = el;
+                            }}
+                            value={figures[metric]}
+                            onChange={(event) =>
+                              setFigures((prev) => ({
+                                ...prev,
+                                [metric]: event.target.value,
+                              }))
+                            }
+                            onKeyDown={(event) => onFigureKeyDown(event, index)}
+                            placeholder={METRIC_PLACEHOLDERS[metric]}
+                            aria-describedby={group.id}
+                            className="w-28 shrink-0"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t pt-2">
+              <p className="text-xs text-muted-foreground">
+                Figures you enter override what we research and appear as
+                client-provided in your report.
+              </p>
+            </div>
           </FieldSet>
         </div>
       </div>
 
       {error && (
-        <FieldError role="alert" className="px-2">
+        <FieldError role="alert" className="flex items-center gap-2 px-2">
+          <CircleAlert aria-hidden="true" className="size-3.5 shrink-0" />
           {error}
         </FieldError>
       )}
