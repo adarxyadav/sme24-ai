@@ -28,7 +28,7 @@ Dark mode is class-based: the same `:root` variables are re-assigned under `.dar
 
 Status tokens are text-safe on `background` in both modes (≥ 4.5:1, checked) and carry `text-background` when used as fills. Elevation is hairline-only — no drop shadows.
 
-Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it. Small controls `rounded-md`, panels `rounded-lg`/`rounded-xl`.
+Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it. Small controls `rounded-md`, panels `rounded-lg`/`rounded-xl`. One exception (T-037, owner-approved): the search composer's own controls — disclosure chips, attachment chip, submit circle — are pills (`rounded-full`); the composer panel stays `rounded-xl`. The pill grammar belongs to the composer alone and does not travel to other surfaces.
 
 ## Dashboard composition rules
 
@@ -45,5 +45,9 @@ A figure computed at display time from stored rows (`kpi-contract.md`, Derivatio
 ### Shell
 
 `/dashboard` renders inside `DashboardShell`, not `SiteShell` (T-033): a shadcn sidebar (offcanvas below `md`, collapse state in a cookie) plus a slim top bar carrying only the sidebar trigger; page content sits in a `max-w-5xl` column. Sidebar chrome uses the `sidebar-*` tokens exclusively — the active nav item is tonal (`sidebar-accent`), never teal. On this surface the sidebar footer owns the theme toggle, the account identity and Log out; `SiteFooter` does not render. The run history lives only in the sidebar's "Analyses" group, chat-history style (T-035) — one truncated company name per run, no status decoration; state belongs to the run page.
+
+### Intake
+
+`/dashboard`'s intake is a single centered ask bar (T-037, mockup `context/product/design-search-composer.html`): greeting + one large autofocused company-name input in a hairline `rounded-xl` panel. Everything optional lives behind three quiet footer controls — attach (paperclip; the PDF renders as a removable chip), and the `Website` / `Your figures` disclosures, which expand inside the same panel below a hairline. Collapsed sections stay mounted so typed values always submit; a collapsed section holding a value marks its chip with a teal dot. Teal appears exactly once: the submit circle (spinner while pending). Chip open state is tonal (`accent`), never teal. Errors are one line under the composer.
 
 Everything else in this section is still undefined.
