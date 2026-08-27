@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/marketing/ThemeToggle";
 
 const LINKS = [
   { href: "/#how-it-works", label: "How it works" },
@@ -15,13 +16,16 @@ export function SiteFooter() {
           <p>© {new Date().getFullYear()} SME24</p>
           <p>EHS consulting marketplace for Swiss SMEs</p>
         </div>
-        <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1">
-          {LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="underline-offset-4 hover:text-foreground hover:underline">
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+          <nav aria-label="Footer" className="flex flex-wrap gap-x-4 gap-y-1">
+            {LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className="underline-offset-4 hover:text-foreground hover:underline">
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+          <ThemeToggle />
+        </div>
       </div>
     </footer>
   );

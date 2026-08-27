@@ -28,6 +28,7 @@ export const LOG_MESSAGES = {
   livenessUnknown: "liveness unknown",
   benchmarkingStarted: "benchmarking started",
   peersGathered: "peers gathered",
+  peersReused: "peers reused",
   benchmarkStored: "benchmark stored",
   benchmarkingFailed: "benchmarking failed",
   matchingStarted: "matching started",
