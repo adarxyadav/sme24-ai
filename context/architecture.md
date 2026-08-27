@@ -20,7 +20,7 @@ The dashboard cannot reach a Supabase client, so "reads only through the read la
 
 Contract: `context/product/pipeline-rules.md`. Orchestrated by Trigger.dev v4 — project `sme24-ehs`, default region `eu-central-1` (Frankfurt, matching Supabase); each trigger site also names the region explicitly. Config in `trigger.config.ts` (`dirs: ["./trigger"]`, retry backoff ≥ 60s).
 
-Built so far — **stages 1, 2 and 3** (`trigger/company-research.ts`, `trigger/kpi-extraction.ts`, `trigger/peer-benchmarking.ts`):
+Built so far — **stages 1–4** (`trigger/company-research.ts`, `trigger/kpi-extraction.ts`, `trigger/peer-benchmarking.ts`, `trigger/expert-matching.ts`):
 
 ```
 POST /api/runs ──> create_analysis_run()      run row + client kpis, one transaction
@@ -70,6 +70,7 @@ company-research task
                                from maxDuration; a child failure is logged (warn),
                                never thrown — stage 2's own hook wrote `failed`
   -> then: peerBenchmarkingTask.triggerAndWait({ runId })   same contract
+  -> then: expertMatchingTask.triggerAndWait({ runId })     same contract
 
   onFailure  (retries exhausted) -> status failed + error column + agent_logs row
   onCancel   (cancelled/crashed) -> same, from non-terminal statuses only
@@ -87,7 +88,10 @@ kpi-extraction task (own default queue, no concurrency key)
                                    non-canonical metric -> throw (nothing written)
   4. replace_extracted_kpis()      one transaction: delete origin<>'client', insert the
                                    metrics the client did not supply (anti-join)
-  (stays `extracting`)             stage 3 claims it from here
+  (stays `extracting`)             stage 3 claims it from here; last act writes
+                                   trigger_run_id = parent run id (the waiting
+                                   stage 1), so no instant leaves a working row
+                                   pointing at a finished run (t-018-spec.md D4)
   onFailure / onCancel             as stage 1; onCancel from `extracting` only
 
 peer-benchmarking task (own default queue)
@@ -102,8 +106,20 @@ peer-benchmarking task (own default queue)
   4. code counts                   lib/runs/rank.ts — rank (1 = lowest rate), peer_count,
                                    references only on rate_metric's metric + per-million base
   -> benchmarks row (upsert on run_id)
-  benchmarking -> completed        conditional, completed_at set; the run is now a cache donor
+  (stays `benchmarking`)           hand-back to the parent as in stage 2
   onFailure / onCancel             as stage 1; onCancel from `benchmarking` only
+
+expert-matching task (own default queue)
+  benchmarking|matching -> matching   conditional; overwrites trigger_run_id
+  1. read kpis, benchmark, research  from this run's row
+  2. candidates                      experts rows whose profiles row is role=expert
+                                     AND expert_status=approved; none -> no model call
+  3. model judges                    lib/matching/judge.ts — risk profile, then top-3
+                                     by expert index with score 0–100 + rationale
+  4. code validates                  index in range, no repeats; rank = position
+  -> replace_expert_matches()        one transaction: delete the run's rows, insert
+  matching -> completed              conditional, completed_at set; the run is now a cache donor
+  onFailure / onCancel               as stage 1; onCancel from `matching` only
 ```
 
 The payload is `{ runId }` alone — company name, domain, processor and upload path are read from the row, so a retry or escalation re-run always sees current values. `error` is internal-facing and no read path selects it.
@@ -116,7 +132,7 @@ The working statuses have a task inside them, but the task's hooks do not cover 
 
 Postgres on Supabase (EU, eu-central-1). `supabase/migrations/` is the source of truth; `context/product/pipeline-rules.md` Data model describes intent only.
 
-Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`):
+Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_create_profiles_and_role_lock.sql`, `20260820171022_backfill_missing_profiles.sql`, `20260821090607_revoke_anon_select_on_analysis_tables.sql`, `20260821110530_create_analysis_run_function.sql`, `20260821153519_index_queued_runs_for_sweep.sql`, `20260821163842_create_replace_extracted_kpis_function.sql`, `20260822064803_add_trigger_run_id_for_stalled_sweep.sql`, `20260822080738_create_benchmarks_table.sql`, `20260822082432_create_experts_table.sql`, `20260822083347_create_expert_matches.sql`):
 
 - `profiles` — `id → auth.users on delete cascade`, `role` (`client`|`expert`|`admin`, default `client`), `expert_status` (`none`|`pending`|`approved`|`rejected`, default `none`), `created_at`, `updated_at`. Written by trigger, locked against self-edit; see Auth / RLS below.
 
@@ -124,11 +140,12 @@ Built so far (`20260820114500_create_analysis_tables.sql`, `20260820123014_creat
 - `kpis` — `run_id → analysis_runs`, canonical `metric`, `value`, `unit`, `period`, `source_url`, `source_excerpt`, `confidence` (`low|medium|high`), `origin` (`web|upload|client`); `unique (run_id, metric)`. This row shape is the read-layer interface.
 - `benchmarks` — one row per run (`run_id` unique, cascade): `rate_metric` (`TRIR`|`LTIFR`|null), `peer_count`, `rank`, `verdict`, `maturity_label` (enum `pathological`…`generative`, nullable), `maturity_rationale`, `per_metric_comparison` jsonb (`schema_version`, `rate_metric`, `company` rates, `peers[]` with `comparable`, `references`, `industry`), `parallel_run_id`. Owner-select through the run; the read layer re-derives rank from `peers[]`.
 - `experts` — one row per applicant (`user_id` unique, cascade): `full_name`, `headline`, `bio`, `competencies[]`, `sectors[]` (NACE sections), `languages[]`, `regions[]`, `years_experience`, `availability`, timestamps. Keys come from `lib/experts/catalogue.ts`. Owner-select only; written solely by `apply_as_expert(jsonb)` — `security definer`, keyed on `auth.uid()`, upserts the caller's row and moves `profiles.expert_status` `none -> pending` in one transaction (`execute` granted to `authenticated`). Approval (`role = expert`, `expert_status = approved`) is a service-role write.
+- `expert_matches` — stage 4's top 3 per run: `run_id`, `expert_id`, `rank` (1–3), `score` (0–100), `rationale`; unique on `(run_id, expert_id)` and `(run_id, rank)`. Written only by `replace_expert_matches(p_run_id, p_matches)` (service role, one transaction). Owner-through-run select; experts read their side through `my_expert_matches()` (`security definer`, projects `run_id`, `company_name`, `rank`, `matched_at` only).
 - `agent_logs` — `run_id`, `stage`, `level` (`info|warn|error`), `message`, `payload` jsonb. Pipeline-internal only.
 - `create_analysis_run(p_user_id, p_company_name, p_company_domain, p_cache_key, p_kpis jsonb) returns uuid` — the trigger route's only write: the `analysis_runs` row plus the client `kpis` rows in one transaction. Not `security definer`; `execute` granted to `service_role` alone.
 - `replace_extracted_kpis(p_run_id, p_kpis jsonb) returns integer` (`20260821163842`) — stage 2's only KPI write: deletes the run's `origin <> 'client'` rows and inserts the given rows for metrics no client row holds, in one transaction. Client rows keep their `id`/`created_at` across retries. Same privilege model.
 
-Still to come (own tickets): `expert_matches`, `proposals`, `ehs_documents` (pgvector), Storage buckets for uploads and proposal PDFs.
+Still to come (own tickets): `proposals`, `ehs_documents` (pgvector), Storage buckets for uploads and proposal PDFs.
 
 ## Auth / RLS
 
@@ -147,7 +164,8 @@ Every request: `proxy.ts` → `lib/supabase/proxy.ts#updateSession` refreshes co
 
 RLS is the access boundary:
 
-- `experts`: `authenticated` may `select` its own row; no write grants — `apply_as_expert` is the one write path.
+- `experts`: `authenticated` may `select` its own row, and the rows of experts matched to a run it owns (second policy, T-018); no write grants — `apply_as_expert` is the one write path.
+- `expert_matches`: `authenticated` may `select` rows of runs it owns. An expert's own view goes through `my_expert_matches()`, never a policy on `analysis_runs`.
 - `profiles` — one row per `auth.users` row, created by the `handle_new_user` trigger (`security definer`, `set search_path = ''`, owned by `postgres`). `authenticated` may `select` its own row only; `insert`/`update`/`delete` are revoked, so `role` and `expert_status` change only through the service role. Every column is privileged today, which is why there is no column-level update grant yet.
 - `analysis_runs`: `authenticated` may `select` rows where `user_id = auth.uid()`.
 - `kpis`: `authenticated` may `select` rows whose run they own.

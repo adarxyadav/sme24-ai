@@ -24,7 +24,7 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 Deferred scope — not tickets yet; each becomes one, with its check, when it moves up.
 
-- Pipeline stages 4–5: expert matchmaking, proposal generation + EHS Vault.
+- Pipeline stage 5: proposal generation + EHS Vault.
 - Display-time derivations from `kpi-contract.md` (recordable / lost-time counts from rate × hours, hours from headcount) — the ledger shows stored rows only (`t-006-spec.md` D4); needs the ≈ + formula rendering rule designed first.
 - Packages: fill `context/product/packages.md`, then Stripe Checkout with MWST and the retainer contact form.
 - Admin surface (runs, users, expert approval, agent_logs).

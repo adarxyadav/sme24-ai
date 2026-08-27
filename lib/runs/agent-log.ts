@@ -30,6 +30,9 @@ export const LOG_MESSAGES = {
   peersGathered: "peers gathered",
   benchmarkStored: "benchmark stored",
   benchmarkingFailed: "benchmarking failed",
+  matchingStarted: "matching started",
+  matchesStored: "matches stored",
+  matchingFailed: "matching failed",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";

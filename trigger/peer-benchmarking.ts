@@ -18,8 +18,8 @@ import { createServiceClient } from "@/lib/supabase/service";
 // Stage 3 — peer benchmarking (pipeline-rules.md, Stages; t-016-spec.md).
 // Triggered by stage 1 via triggerAndWait after extraction. Parallel gathers
 // the peers (base processor, never cached), the model judges, code derives
-// every number. Owns the last two moves of the machine for now:
-// extracting -> benchmarking -> completed.
+// every number. Moves the machine one step, extracting -> benchmarking; stage 4
+// claims the run from `benchmarking`.
 
 const STAGE = "benchmark";
 
@@ -255,25 +255,17 @@ export const peerBenchmarkingTask = task({
       },
     });
 
-    // From `benchmarking` only: a terminal already written must not be undone.
-    const { data: completed, error: completeError } = await service
+    // The run stays `benchmarking` for stage 4 to claim; the handle goes back
+    // to the waiting parent first, for the same reason as in stage 2
+    // (t-018-spec.md D4).
+    const { error: handBackError } = await service
       .from("analysis_runs")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({ trigger_run_id: ctx.run.parentTaskRunId ?? ctx.run.id })
       .eq("id", runId)
       .eq("status", "benchmarking")
-      .select("id")
-      .maybeSingle<{ id: string }>();
+      .eq("trigger_run_id", ctx.run.id);
 
-    if (completeError) throw new Error(`completion write failed: ${completeError.message}`);
-    if (!completed) throw new Error(`run ${runId} left benchmarking before completion`);
-
-    await agentLog(service, {
-      runId,
-      stage: STAGE,
-      message: LOG_MESSAGES.runCompleted,
-      payload: { peers: peerCount, rank },
-    });
-
+    if (handBackError) throw new Error(`handle hand-back failed: ${handBackError.message}`);
     logger.log("stage 3 complete", { runId, rateMetric, rank, peerCount });
 
     return { runId, rateMetric, rank, peerCount };
