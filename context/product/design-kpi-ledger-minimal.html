@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KPI ledger — minimal (light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Tokens — light values from context/design.md, verbatim. Nothing else. */
+  :root {
+    --background: oklch(0.989 0.003 49);
+    --foreground: oklch(0.264 0.013 94);
+    --primary: oklch(0.478 0.081 203);
+    --muted: oklch(0.955 0.006 85);
+    --muted-foreground: oklch(0.50 0.014 90);
+    --accent: oklch(0.955 0.006 85);
+    --success: oklch(0.50 0.12 144);
+    --warning: oklch(0.487 0.124 44);
+    --border: oklch(0.892 0.010 88);
+    --input: oklch(0.78 0.016 88);
+    --ring: oklch(0.478 0.081 203 / 60%);
+    --radius: 0.625rem;
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: light; }
+  body {
+    margin: 0;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: Geist, ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--foreground); text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+  .page { max-width: 62rem; margin: 0 auto; padding: 48px 20px 96px; display: grid; gap: 48px; }
+  .spec { font-size: 12px; color: var(--muted-foreground); }
+  .spec strong { color: var(--foreground); font-weight: 500; }
+
+  /* ── Card: one hairline. Elevation is the hairline (design.md). ───────── */
+  .card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--background);
+    overflow: clip;
+  }
+
+  .head {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .head__title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+  .head h2 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .head .period { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+  /* Signature: the disclosure meter. Seven ticks, one per canonical metric,
+     in ledger order. Filled = the row has a value. State, not decoration. */
+  .meter { display: flex; align-items: center; gap: 8px; flex: none; }
+  .meter__ticks { display: flex; gap: 3px; }
+  .meter__ticks i {
+    width: 12px; height: 3px; border-radius: 999px;
+    background: var(--border);
+  }
+  .meter__ticks i.on { background: var(--primary); }
+  .meter__count { font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .meter__count b { color: var(--foreground); font-weight: 500; }
+
+  /* ── Table ────────────────────────────────────────────────────────────── */
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; }
+
+  thead th {
+    font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted-foreground);
+    text-align: left; white-space: nowrap;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  thead th:first-child { padding-left: 20px; }
+  thead th:last-child { padding-right: 20px; }
+  thead th.r { text-align: right; }
+
+  tbody td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+  tbody td:first-child { padding-left: 20px; }
+  tbody td:last-child { padding-right: 20px; white-space: normal; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr { transition: background-color 100ms ease; }
+  tbody tr:hover { background: color-mix(in oklab, var(--accent) 55%, var(--background)); }
+
+  /* Metric: name carries the row; the basis lives beside it, not beneath. */
+  .metric { font-weight: 500; }
+  .metric .hint { font-weight: 400; font-size: 12px; color: var(--muted-foreground); margin-left: 8px; }
+
+  /* Value: mono, tabular, right-aligned. The only visually loud cell. */
+  td.val { text-align: right; font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums slashed-zero; font-size: 13px; }
+  td.val .unit { color: var(--muted-foreground); font-size: 11px; margin-left: 4px; }
+  td.val .formula { display: block; font-size: 11px; color: var(--muted-foreground); margin-top: 2px; }
+  td.val.none, td .none { color: var(--muted-foreground); font-family: Geist, sans-serif; font-weight: 400; }
+
+  td.period { color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+
+  /* Confidence: a dot and a word. No badge chrome. */
+  .conf { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .conf::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+  .conf.high { color: var(--success); }
+  .conf.medium { color: var(--warning); }
+  .conf.low { color: var(--muted-foreground); }
+  .chip {
+    font-size: 11px; color: var(--muted-foreground);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  /* Source: hostname is a quiet link; excerpt is one truncated line. */
+  td.src { max-width: 22rem; }
+  .src a { border-bottom: 1px solid var(--input); padding-bottom: 1px; }
+  .src a:hover { color: var(--primary); border-bottom-color: currentColor; }
+  .src .marker { color: var(--muted-foreground); }
+  .src .excerpt {
+    display: block; font-size: 12px; color: var(--muted-foreground); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  tr.empty td, tr.empty .metric { color: var(--muted-foreground); font-weight: 400; }
+
+  .foot {
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+    font-size: 12px; color: var(--muted-foreground);
+    display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  }
+  .foot .mono { font-family: "Geist Mono", ui-monospace, monospace; font-size: 11px; }
+
+  /* Sparse-state nudge: an empty screen is an invitation to act. */
+  .foot a.action { color: var(--primary); font-weight: 500; }
+  .foot a.action:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+  /* ── Load: rows rise once, 25ms apart. The only motion on the page. ───── */
+  @media (prefers-reduced-motion: no-preference) {
+    tbody tr { animation: rise 300ms cubic-bezier(0.2, 0.6, 0.2, 1) backwards; }
+    tbody tr:nth-child(1) { animation-delay: 0ms; }
+    tbody tr:nth-child(2) { animation-delay: 25ms; }
+    tbody tr:nth-child(3) { animation-delay: 50ms; }
+    tbody tr:nth-child(4) { animation-delay: 75ms; }
+    tbody tr:nth-child(5) { animation-delay: 100ms; }
+    tbody tr:nth-child(6) { animation-delay: 125ms; }
+    tbody tr:nth-child(7) { animation-delay: 150ms; }
+    @keyframes rise { from { opacity: 0; translate: 0 4px; } }
+  }
+
+  /* ── Mobile: each metric becomes two quiet lines. ─────────────────────── */
+  @media (max-width: 44rem) {
+    thead { display: none; }
+    table, tbody, tr, td { display: block; }
+    tbody td { border-bottom: 0; padding: 2px 20px; white-space: normal; }
+    tbody tr { padding: 12px 0; border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: 0; }
+    tr { display: grid; grid-template-columns: 1fr auto; grid-template-areas: "m v" "s s" "c c"; align-items: baseline; }
+    td.metric { grid-area: m; }
+    td.val { grid-area: v; text-align: right; }
+    td.period { display: none; }
+    td.conf-cell { grid-area: c; padding-top: 4px; }
+    td.src { grid-area: s; max-width: none; padding-top: 4px; }
+    .metric .hint { display: block; margin: 1px 0 0; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="spec"><strong>KPI ledger — minimal pass.</strong> Tokens verbatim from context/design.md · Geist / Geist Mono · one hairline, no fills, no shadows. Signature: the seven-tick disclosure meter.</div>
+
+  <!-- ═══ State A: 5 of 7 disclosed ═══ -->
+  <section class="card" aria-labelledby="t1">
+    <header class="head">
+      <div class="head__title">
+        <h2 id="t1">KPI ledger</h2>
+        <span class="period">FY 2025</span>
+      </div>
+      <div class="meter" role="img" aria-label="5 of 7 metrics have a value">
+        <span class="meter__ticks" aria-hidden="true">
+          <i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i class="on"></i>
+        </span>
+        <span class="meter__count"><b>5</b>/7</span>
+      </div>
+    </header>
+
+    <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Metric</th>
+          <th scope="col" class="r">Value</th>
+          <th scope="col">Period</th>
+          <th scope="col">Confidence</th>
+          <th scope="col">Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric">TRIR<span class="hint">per 1'000'000 h</span></td>
+          <td class="val">2.5</td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf high">High</span></td>
+          <td class="src">
+            <a href="#s1">acme-chemie.ch<span class="sr-only"> (opens the cited disclosure)</span></a>
+            <span class="excerpt">“Our total recordable incident rate improved to 2.5 per million hours worked.”</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="metric">LTIFR<span class="hint">per 1'000'000 h</span></td>
+          <td class="val">0.83</td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf high">High</span></td>
+          <td class="src">
+            <a href="#s2">acme-chemie.ch<span class="sr-only"> (opens the cited disclosure)</span></a>
+            <span class="excerpt">“Lost time injury frequency rate: 0.83 (2024: 1.10).”</span>
+          </td>
+        </tr>
+        <tr>
+          <td class="metric">Recordable injuries<span class="hint">count, past year</span></td>
+          <td class="val">≈ 6<span class="formula">2.5 × 2'400'000 ÷ 10⁶</span></td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="chip">Derived</span></td>
+          <td class="src"><span class="marker">Derived from TRIR and hours worked</span></td>
+        </tr>
+        <tr>
+          <td class="metric">Lost-time injuries<span class="hint">count, past year</span></td>
+          <td class="val">2</td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf high">High</span></td>
+          <td class="src"><span class="marker">Client-provided</span></td>
+        </tr>
+        <tr>
+          <td class="metric">Fatalities<span class="hint">count, past year</span></td>
+          <td class="val">0</td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf medium">Medium</span></td>
+          <td class="src">
+            <span class="marker">Uploaded report</span>
+            <span class="excerpt">“No work-related fatalities occurred at any site during the period.”</span>
+          </td>
+        </tr>
+        <tr class="empty">
+          <td class="metric">Near misses<span class="hint">count, past year</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+        <tr>
+          <td class="metric">Hours worked<span class="hint">total, past year</span></td>
+          <td class="val">2'400'000<span class="unit">h</span></td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf medium">Medium</span></td>
+          <td class="src">
+            <a href="#s3">annualreports.com<span class="sr-only"> (opens the cited disclosure)</span></a>
+            <span class="excerpt">“…a workforce of approximately 1'250 FTE delivering 2.4 million productive hours.”</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <footer class="foot">
+      <span>Copied from cited disclosures or supplied by you. Nothing is estimated.</span>
+      <span class="mono">≈ derived at display time</span>
+    </footer>
+  </section>
+
+  <!-- ═══ State B: 1 of 7 disclosed ═══ -->
+  <section class="card" aria-labelledby="t2">
+    <header class="head">
+      <div class="head__title">
+        <h2 id="t2">KPI ledger</h2>
+        <span class="period">FY 2025</span>
+      </div>
+      <div class="meter" role="img" aria-label="1 of 7 metrics has a value">
+        <span class="meter__ticks" aria-hidden="true">
+          <i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i>
+        </span>
+        <span class="meter__count"><b>1</b>/7</span>
+      </div>
+    </header>
+
+    <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col">Metric</th>
+          <th scope="col" class="r">Value</th>
+          <th scope="col">Period</th>
+          <th scope="col">Confidence</th>
+          <th scope="col">Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="empty">
+          <td class="metric">TRIR<span class="hint">per 1'000'000 h</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+        <tr class="empty">
+          <td class="metric">LTIFR<span class="hint">per 1'000'000 h</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+        <tr>
+          <td class="metric">Recordable injuries<span class="hint">count, past year</span></td>
+          <td class="val">4</td>
+          <td class="period">FY 2025</td>
+          <td class="conf-cell"><span class="conf high">High</span></td>
+          <td class="src"><span class="marker">Client-provided</span></td>
+        </tr>
+        <tr class="empty">
+          <td class="metric">Fatalities<span class="hint">count, past year</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+        <tr class="empty">
+          <td class="metric">Near misses<span class="hint">count, past year</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+        <tr class="empty">
+          <td class="metric">Hours worked<span class="hint">total, past year</span></td>
+          <td class="val none">Not disclosed</td>
+          <td class="period"><span class="none">—</span></td>
+          <td class="conf-cell"><span class="none">—</span></td>
+          <td class="src"><span class="none">—</span></td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
+
+    <footer class="foot">
+      <span>Public disclosure is thin for this company. Your own figures always win.</span>
+      <a class="action" href="#add">Add figures</a>
+    </footer>
+  </section>
+
+</div>
+</body>
+</html>
