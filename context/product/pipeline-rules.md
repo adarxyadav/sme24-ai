@@ -109,8 +109,8 @@ Per-user Trigger.dev queue with concurrency 1 → one run at a time per user. Th
 
 Base → ultra, once only, agent-logged every time; the run's status does not move during a re-run:
 
-- **Company research** — applies only to explicit `processor: 'base'` runs (ultra is the default). Trigger: zero numeric web KPIs after extraction → re-run stages 1–2 on ultra.
-- **Benchmark peer call** — base by default. Trigger: no numeric peer TRIRs/LTIFRs → retry the peer gathering on ultra.
+- **Company research** — applies only to explicit `processor: 'base'` runs (ultra is the default; the trigger route accepts the override in the body, the form never sends it). Trigger: zero numeric web KPIs after extraction → the run flips to ultra and stage 1 re-triggers itself with `reason: 'escalation'`; the re-run writes its own `trigger_run_id` on entry, keeps the status, re-researches under the tier rule and carries the chain from stage 2 to the end; the first run returns. A re-run never escalates again.
+- **Benchmark peer call** — base by default. Trigger: no numeric peer TRIRs/LTIFRs → retry the peer gathering on ultra, once, in the same task; both Parallel runs are logged.
 - Model-call retry backoff ≥ 60s.
 
 ## Trigger route (`app/api/`)
