@@ -19,6 +19,18 @@ const TASK_MAX_DURATION_SECONDS = 600;
 
 type Payload = { runId: string };
 
+const HANG_MS = 10 * 60_000;
+
+function sleepUntilAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 type RunRow = {
   id: string;
   company_name: string;
@@ -47,7 +59,9 @@ export const kpiExtractionTask = task({
     // KPIs onto it would be wrong — so this throws rather than proceeds.
     const { data: claimed, error: claimError } = await service
       .from("analysis_runs")
-      .update({ status: "extracting" })
+      // The child overwrites the parent's handle: at `extracting` the child is
+      // the task whose liveness decides the row (t-011-spec.md D3).
+      .update({ status: "extracting", trigger_run_id: ctx.run.id })
       .eq("id", runId)
       .in("status", ["researching", "extracting"])
       .select("id, company_name, research")
@@ -56,6 +70,12 @@ export const kpiExtractionTask = task({
     if (claimError) throw new Error(`status update failed: ${claimError.message}`);
     if (!claimed) throw new Error(`run ${runId} is not awaiting extraction`);
     if (!claimed.research) throw new Error(`run ${runId} has no research to extract from`);
+
+    // Testing seam (t-011-spec.md D8): hold the parent inside triggerAndWait
+    // (WAITING) with this child EXECUTING, so a live sweep sees both.
+    if (process.env.FORCE_STAGE2_HANG) {
+      await sleepUntilAborted(HANG_MS, signal);
+    }
 
     const { data: clientKpis, error: kpiError } = await service
       .from("kpis")

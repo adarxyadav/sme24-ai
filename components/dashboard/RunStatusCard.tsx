@@ -1,17 +1,66 @@
-import { Clock } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  Loader,
+  SearchX,
+  TimerOff,
+  type LucideIcon,
+} from "lucide-react";
+import { RunStatusBadge } from "@/components/dashboard/RunStatusBadge";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { runState, type RunState } from "@/lib/portal/run-state";
 import type { Run } from "@/lib/portal/runs";
+import { cn } from "@/lib/utils";
 
-// T-003 renders the queued state only — nothing can advance a run until the
-// stage-1 task exists (T-004), so there is no polling and no realtime here.
-// T-006 owns the remaining states and extends this component.
+type StateBlock = { icon: LucideIcon; tone: string; title: string; body: string };
+
+// Copy is fixed per state and reads nothing but the status: the read layer
+// never selects `error`, so the failed notice is generic by construction
+// (pipeline-rules.md: "a generic delayed notice, never the error").
+const BLOCKS: Record<RunState, StateBlock> = {
+  queued: {
+    icon: Clock,
+    tone: "text-primary",
+    title: "Queued",
+    body: "Your search is in the queue. We’ll research public disclosures and extract the safety KPIs with their sources.",
+  },
+  in_progress: {
+    icon: Loader,
+    tone: "text-primary",
+    title: "In progress",
+    body: "We’re researching public disclosures and extracting the safety KPIs with their sources. Refresh this page in a minute.",
+  },
+  completed: {
+    icon: CheckCircle2,
+    tone: "text-success",
+    title: "Completed",
+    body: "The KPI ledger below lists every figure with its source. A metric with no public disclosure is shown as not disclosed.",
+  },
+  no_data: {
+    icon: SearchX,
+    tone: "text-muted-foreground",
+    title: "Nothing public found",
+    body: "We found no EHS disclosures for this company and no figures were supplied. Run a new search with your own figures to get a ledger.",
+  },
+  failed: {
+    icon: TimerOff,
+    tone: "text-warning",
+    title: "Delayed",
+    body: "This analysis hit a problem on our side. It has been logged and we’ll look into it — please check back later.",
+  },
+};
+
 export function RunStatusCard({ run }: { run: Run }) {
+  const block = BLOCKS[runState(run.status)];
+  const Icon = block.icon;
+
   return (
     <Card>
       <CardHeader>
@@ -20,16 +69,16 @@ export function RunStatusCard({ run }: { run: Run }) {
         {run.company_domain && (
           <CardDescription>{run.company_domain}</CardDescription>
         )}
+        <CardAction>
+          <RunStatusBadge status={run.status} />
+        </CardAction>
       </CardHeader>
       <CardContent>
         <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-4">
-          <Clock aria-hidden="true" className="mt-0.5 size-5 text-primary" />
+          <Icon aria-hidden="true" className={cn("mt-0.5 size-5", block.tone)} />
           <div className="flex flex-col gap-1">
-            <p className="font-medium">Queued</p>
-            <p className="text-sm text-muted-foreground">
-              Your search is in the queue. We&rsquo;ll research public
-              disclosures and extract the safety KPIs with their sources.
-            </p>
+            <p className="font-medium">{block.title}</p>
+            <p className="text-sm text-muted-foreground">{block.body}</p>
           </div>
         </div>
       </CardContent>

@@ -40,7 +40,7 @@ Identities with the same verified email auto-link to one user (Supabase default)
 
 ## Landing
 
-`/auth/redirect` (route handler) reads the profile and dispatches: `admin` → `/admin`, `expert` → `/expert`, `client` with `expert_status = 'pending'` → `/expert/apply`, else → `/dashboard`. Until T-006 ships `/dashboard`, the client target is `/`.
+`/auth/redirect` (route handler) reads the profile and dispatches: `admin` → `/admin`, `expert` → `/expert`, `client` with `expert_status = 'pending'` → `/expert/apply`, else → `/dashboard`.
 
 ## Every request
 

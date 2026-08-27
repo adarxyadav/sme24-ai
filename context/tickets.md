@@ -14,13 +14,11 @@ First feature (T-001 → T-006): the funnel spine — company name in, extracted
 
 ## Now
 
-(empty — next up: T-006)
+(empty — next up: repo owner picks from Later)
 
 ## Next
 
-### T-006 — Dashboard report read layer
-- What: RLS-scoped read layer plus the client dashboard — run list and run detail rendering the KPI ledger with provenance, "Client-provided" markers, and a rendered state for every run status.
-- Check: the dashboard reads only through the read layer, never the engine; queued, in-progress, completed, `no_data`, and `failed` each render a distinct state, with `failed` showing the generic delayed notice and no internals; client-origin rows render "Client-provided"; another user's run URL renders not-found; `ui-registry.md` lists every component added.
+(empty)
 
 ## Later
 
@@ -28,12 +26,16 @@ Deferred scope — not tickets yet; each becomes one, with its check, when it mo
 
 - Pipeline stages 3–5: peer benchmarking, expert matchmaking, proposal generation + EHS Vault.
 - Annual incident cost (CHF) in the read layer, once the loss constants have their source doc in `context/product/`.
+- Display-time derivations from `kpi-contract.md` (recordable / lost-time counts from rate × hours, hours from headcount) — the ledger shows stored rows only (`t-006-spec.md` D4); needs the ≈ + formula rendering rule designed first.
+- Live run progress on the dashboard (polling or Trigger.dev realtime) — T-006 tells the user to refresh; a realtime hook would couple the dashboard to the engine's run ids, so it needs its own boundary decision.
 - Packages: fill `context/product/packages.md`, then Stripe Checkout with MWST and the retainer contact form.
 - Expert and admin surfaces.
 - Post-report collection surface for the leading indicators and the client-only lagging four.
 - Base-processor escalation paths.
 - Uploaded report override (stage 1 step 4, scoped out of T-004 — `t-004-spec.md` D10): private Storage bucket, upload control on the search form, `uploaded_report_path` validated as owned by the caller in the trigger route, and a Claude PDF read that overrides the web result for any field it covers. *Check to be written by the repo owner before this moves up.*
-- Stalled in-progress runs: T-010 gave `queued` an owner, but `researching` (and every later working status) still has none. `onCancel` catches a cancelled or crashed task; a worker that dies without cancelling leaves the run in-progress forever, which is how `91c61651` sat at `researching` for two hours on 2026-08-21. The `queued` sweeper's approach does not transfer — a run legitimately occupies `researching` for up to the task's 30-minute `maxDuration`, and the row alone cannot say whether the task is still alive, so this needs `runs.retrieve` against the Trigger.dev API rather than an age threshold. *Check to be written by the repo owner before this moves up.*
+- Stage-1 retry after the claim is a no-op: the `queued -> researching` claim is conditional on `queued` alone, so attempt 2 of a stage-1 run that threw *after* claiming (a Parallel error, a write failure) loses the claim, logs `run already claimed`, returns, and `onFailure` never fires — the retry budget is spent on nothing and the row stalls until the T-011 sweeper sees the run `COMPLETED`. Found 2026-08-22 (`t-011-spec.md`, Standing facts). Fix is a claim that also accepts `researching` for the same `trigger_run_id`.
+- Parallel run id is logged only after the result wait returns (`parallel run created` follows `researchCompany`), so a run killed mid-wait shows `cache miss` and nothing else while a paid ultra run exists. Log the id right after `createRun`, before the wait. Found 2026-08-22 during T-011 verification.
+- Escalation re-run (`t-005-spec.md` D7, deferred) must write `trigger_run_id = ctx.run.id` on entry: it is exempt from the claim, and a row still pointing at the finished first run is what the T-011 sweeper terminates (`t-011-spec.md` D1).
 - Cancelled-run terminal status: `onCancel` currently writes `failed` because the state machine has no `cancelled`. Decide whether a distinct status is worth a schema change.
 - Marketing site beyond the search form.
 - Deploy target.

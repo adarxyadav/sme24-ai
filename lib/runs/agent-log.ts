@@ -24,6 +24,8 @@ export const LOG_MESSAGES = {
   kpisExtracted: "kpis extracted",
   runCompleted: "run completed",
   extractionFailed: "extraction failed",
+  sweptStalled: "stalled run swept",
+  livenessUnknown: "liveness unknown",
 } as const;
 
 type LogLevel = "info" | "warn" | "error";
