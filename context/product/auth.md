@@ -65,10 +65,11 @@ Identities with the same verified email auto-link to one user (Supabase default)
 
 Recorded here because it cannot be versioned:
 
-- Email provider: Resend custom SMTP (`smtp.resend.com:465`, user `resend`, API key as password), sender `onboarding@resend.dev` during build-out. Before launch: verified EU domain, sender `noreply@<domain>`, SPF + DKIM. Flipping the sender changes no code.
+- Email provider: Resend custom SMTP (`smtp.resend.com:465`, user `resend`, API key as password), sender `onboarding@resend.dev` during build-out — Resend delivers that sender only to the account's own address (`service@ichotz.com`); every other recipient gets a 550 and Supabase answers 500 "Error sending magic link email". Before launch: verified EU domain, sender `noreply@<domain>`, SPF + DKIM. Flipping the sender changes no code.
 - Email templates: **both** "Magic link or OTP" and "Confirm sign up" (Supabase sends the latter for a brand-new email) link to `{{ .RedirectTo }}&token_hash={{ .TokenHash }}&type=email`; copy in English for now (DE/FR: Later).
 - Redirect URLs allowlist: `http://localhost:3000/auth/**` and the production origin.
-- Rate limits: OTP sends ≤ 1 per email per 60 s (Supabase default) — keep; enable Turnstile on `/login` before launch.
+- Rate limits: OTP sends ≤ 1 per email per 60 s (Supabase default) — keep.
+- Captcha protection: **on**, provider Turnstile (T-024). The secret lives in Supabase Auth only (set through the management API); the site key is `NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Cloudflare's public test pair during build-out; swap both for the real pair at launch — no code change. Applies to the magic-link (OTP) flow; Google OAuth is not captcha-gated by Supabase.
 - Sessions: refresh-token rotation on, reuse interval default; inactivity timeout **30 days** (decided; change here first).
 - Google provider: client ID/secret from Google Cloud project `sme24` (OAuth client `sme24-supabase`, redirect URI `https://<ref>.supabase.co/auth/v1/callback`); consent screen published (email/profile scopes need no verification) and shows the Supabase domain until the custom-domain add-on is bought (launch decision).
 

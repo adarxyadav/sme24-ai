@@ -18,7 +18,7 @@ Every reusable component, one line each: `ComponentName (path) — what it's for
 
 ## Composites
 
-- `LoginCard` (components/portal/LoginCard.tsx, client) — the single sign-in card: Google button, separator, magic-link email form; `next` (validated path forwarded to both doors), `error` (human copy rendered as an alert). Swaps itself for a "Check your email" state after a successful send (`useActionState` on `requestMagicLink`).
+- `LoginCard` (components/portal/LoginCard.tsx, client) — the single sign-in card: Google button, separator, magic-link email form with a Turnstile widget (token as hidden field, submit disabled until it passes); `next` (validated path forwarded to both doors), `error` (human copy rendered as an alert). Swaps itself for a "Check your email" state after a successful send (`useActionState` on `requestMagicLink`).
 - `MagicLinkConfirm` (components/portal/MagicLinkConfirm.tsx, server) — "Almost there" card whose single button POSTs the token to `confirmMagicLink`; `tokenHash`, `next`. The token is spent on POST only, so a prefetched GET cannot consume it.
 - `AuthNav` (components/marketing/AuthNav.tsx, async server) — header auth controls: a Sign in link when signed out; "For experts"/"Expert area" link (by role), email + Log out form (calls `actions/auth#logout`) when signed in. Rendered inside `SiteHeader`'s nav.
 - `HowItWorks` (components/marketing/HowItWorks.tsx, server) — "How it works": the five pipeline stages as a numbered grid; no props.

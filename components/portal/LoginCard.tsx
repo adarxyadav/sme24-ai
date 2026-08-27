@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { MailCheck } from "lucide-react";
 import {
   requestMagicLink,
@@ -35,6 +36,9 @@ export function LoginCard({ next, error }: LoginCardProps) {
     requestMagicLink,
     undefined,
   );
+  // Turnstile's token rides the form as a hidden field; Supabase verifies it
+  // server-side (auth.md, Dashboard configuration). The site key is public.
+  const [captchaToken, setCaptchaToken] = useState("");
 
   if (state?.sent) {
     return (
@@ -85,7 +89,15 @@ export function LoginCard({ next, error }: LoginCardProps) {
               <FieldError role="alert">{state.error}</FieldError>
             )}
           </FieldGroup>
-          <Button type="submit" disabled={pending}>
+          <input type="hidden" name="captchaToken" value={captchaToken} />
+          <Turnstile
+            siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? ""}
+            options={{ size: "flexible" }}
+            onSuccess={setCaptchaToken}
+            onExpire={() => setCaptchaToken("")}
+            onError={() => setCaptchaToken("")}
+          />
+          <Button type="submit" disabled={pending || captchaToken === ""}>
             {pending ? "Sending link…" : "Email me a sign-in link"}
           </Button>
         </form>
