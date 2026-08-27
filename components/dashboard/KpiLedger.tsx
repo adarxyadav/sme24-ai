@@ -71,8 +71,8 @@ export function KpiLedger({ rows }: { rows: LedgerRow[] }) {
   return (
     <Table>
       <TableCaption>
-        Figures are copied from the cited disclosure or supplied by you; nothing
-        is estimated.
+        Figures are copied from the cited disclosure or supplied by you; a value
+        marked ≈ is computed from them by the stated formula.
       </TableCaption>
       <TableHeader>
         <TableRow>
@@ -84,7 +84,7 @@ export function KpiLedger({ rows }: { rows: LedgerRow[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map(({ metric, label, hint, kpi }) => (
+        {rows.map(({ metric, label, hint, kpi, derived }) => (
           <TableRow key={metric}>
             <TableCell>
               <div className="font-medium">{label}</div>
@@ -100,6 +100,11 @@ export function KpiLedger({ rows }: { rows: LedgerRow[] }) {
                     </span>
                   )}
                 </>
+              ) : derived ? (
+                <>
+                  <span className="font-medium">≈ {formatValue(derived.value)}</span>
+                  <div className="text-xs text-muted-foreground">{derived.formula}</div>
+                </>
               ) : (
                 <span className="text-muted-foreground">Not disclosed</span>
               )}
@@ -108,7 +113,18 @@ export function KpiLedger({ rows }: { rows: LedgerRow[] }) {
               {kpi?.period ?? "—"}
             </TableCell>
             <TableCell>
-              {kpi ? (
+              {kpi?.value !== null && kpi?.value !== undefined ? (
+                <Badge
+                  variant="outline"
+                  className={cn(CONFIDENCE_CLASSES[kpi.confidence])}
+                >
+                  {kpi.confidence}
+                </Badge>
+              ) : derived ? (
+                <Badge variant="outline" className="text-muted-foreground">
+                  derived
+                </Badge>
+              ) : kpi ? (
                 <Badge
                   variant="outline"
                   className={cn(CONFIDENCE_CLASSES[kpi.confidence])}
@@ -120,7 +136,13 @@ export function KpiLedger({ rows }: { rows: LedgerRow[] }) {
               )}
             </TableCell>
             <TableCell className="align-top whitespace-normal">
-              {kpi ? (
+              {kpi?.value !== null && kpi?.value !== undefined ? (
+                <Source kpi={kpi} />
+              ) : derived ? (
+                <span className="text-muted-foreground">
+                  Derived from {derived.inputs}
+                </span>
+              ) : kpi ? (
                 <Source kpi={kpi} />
               ) : (
                 <span className="text-muted-foreground">—</span>

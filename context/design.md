@@ -32,7 +32,7 @@ Radius: `--radius: 0.625rem`; scale `rounded-sm/md/lg/xl/2xl…` derives from it
 
 ## Dashboard composition rules
 
-### Derived figures (proposed — awaiting owner OK, built by T-016)
+### Derived figures
 
 A figure computed at display time from stored rows (`kpi-contract.md`, Derivation rules) is never dressed as a disclosure:
 

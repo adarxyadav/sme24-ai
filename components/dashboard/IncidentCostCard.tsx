@@ -63,6 +63,18 @@ export function IncidentCostCard({ cost }: { cost: IncidentCost | null }) {
             </TableBody>
           </Table>
           <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
+            {cost.derivedUsed.length > 0 && (
+              <li>
+                Derived counts used:{" "}
+                {cost.derivedUsed
+                  .map(
+                    (figure) =>
+                      `${figure.label.toLowerCase()} ≈ ${formatValue(figure.value)} (${figure.formula})`,
+                  )
+                  .join("; ")}
+                .
+              </li>
+            )}
             {cost.lostTimeUnknown && (
               <li>
                 The lost-time count is not known, so every recordable injury is
