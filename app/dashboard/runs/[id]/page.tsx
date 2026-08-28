@@ -30,6 +30,17 @@ const dateFormat = new Intl.DateTimeFormat("en-GB", {
   year: "numeric",
 });
 
+function ordinal(n: number): string {
+  const rest = n % 100;
+  const suffix =
+    rest >= 11 && rest <= 13
+      ? "th"
+      : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${suffix}`;
+}
+
+const COUNT_WORDS = ["No", "One", "Two", "Three"] as const;
+
 // A run someone else owns is not found, not forbidden: RLS returns no row, and
 // the page never learns whether the id exists.
 export default async function RunPage({
@@ -81,7 +92,7 @@ export default async function RunPage({
       dim: filled === 0,
     },
     {
-      href: "#benchmark",
+      href: benchmark ? "#benchmark" : undefined,
       label: "Peer benchmark",
       value: benchmark
         ? benchmark.insufficient
@@ -99,13 +110,13 @@ export default async function RunPage({
       dim: !cost,
     },
     {
-      href: "#experts",
+      href: matches ? "#experts" : undefined,
       label: "Matched experts",
       value: matches ? `${matches.length} matched` : "—",
       dim: !matches || matches.length === 0,
     },
     {
-      href: "#proposal",
+      href: proposal ? "#proposal" : undefined,
       label: "Proposal",
       value: proposal
         ? `Tier ${proposal.tier.number}${
@@ -117,6 +128,36 @@ export default async function RunPage({
       dim: !proposal,
     },
   ];
+
+  // The lead: the report's abstract as deterministic prose — every figure is
+  // the strip's own value restated, a fact that does not exist drops its
+  // sentence, and derived money keeps the ≈ grammar (T-040).
+  const lead = [
+    `${run.company_name} discloses ${
+      filled === 0 ? "none" : filled
+    } of the ${CANONICAL_METRICS.length} core safety indicators.`,
+    benchmark && benchmark.rank !== null && benchmark.rate_metric
+      ? `On ${benchmark.rate_metric} it ranks ${ordinal(benchmark.rank)} of ${
+          benchmark.peer_count + 1
+        } comparable companies.`
+      : null,
+    cost
+      ? `The incidents on record cost ≈ ${formatChfRange(cost.min, cost.max)} a year.`
+      : null,
+    matches && matches.length > 0
+      ? `${COUNT_WORDS[matches.length] ?? matches.length} expert${
+          matches.length === 1 ? " matches" : "s match"
+        } its risk profile${
+          proposal
+            ? `; the report closes with a Tier ${proposal.tier.number} proposal`
+            : ""
+        }.`
+      : proposal
+        ? `The report closes with a Tier ${proposal.tier.number} proposal.`
+        : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <article className="flex flex-col gap-10">
@@ -132,6 +173,9 @@ export default async function RunPage({
             {meta.join(" · ")}
           </p>
         )}
+        <p className="mt-4 max-w-176 text-[15px] leading-relaxed tabular-nums">
+          {lead}
+        </p>
         <FindingsStrip findings={findings} />
       </header>
 
