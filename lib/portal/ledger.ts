@@ -7,6 +7,10 @@ import {
 import { isPerMillionHours } from "@/lib/runs/rank";
 import type { KpiRow } from "@/lib/portal/kpis";
 
+// The contract order the ledger renders in — re-exported so dashboard
+// components read it through the portal boundary (t-006-spec.md D1).
+export { CANONICAL_METRICS } from "@/lib/runs/metrics";
+
 // kpi-contract.md, Show: web metrics always render — found or an honest "not
 // disclosed" — while client-only metrics render only when supplied or derived.
 // Research never fills lost_time_injuries (it folds under LTIFR), so it is the

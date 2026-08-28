@@ -27,7 +27,9 @@ export type ExpertMatch = {
     languages: string[];
     regions: string[];
     years_experience: number | null;
-    availability: string;
+    // Key and label together: the report tones its availability dot on the
+    // key without reaching past the portal boundary.
+    availability: { key: Availability; label: string };
   };
 };
 
@@ -78,7 +80,10 @@ export async function getRunMatches(runId: string): Promise<ExpertMatch[]> {
               languages: row.expert.languages.map((k) => label(LANGUAGES, k)),
               regions: row.expert.regions.map((k) => label(REGIONS, k)),
               years_experience: row.expert.years_experience,
-              availability: label(AVAILABILITY, row.expert.availability),
+              availability: {
+                key: row.expert.availability,
+                label: label(AVAILABILITY, row.expert.availability),
+              },
             },
           },
         ]
