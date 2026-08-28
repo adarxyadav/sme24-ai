@@ -1,6 +1,10 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
-import { deriveRank, type BenchmarkComparison } from "@/lib/runs/rank";
+import {
+  comparablePeerRates,
+  deriveRank,
+  type BenchmarkComparison,
+} from "@/lib/runs/rank";
 
 // Stage 3's output for the dashboard. RLS-scoped like every read here. Rank
 // and peer count are re-derived from the stored peers by the same function the
@@ -27,6 +31,9 @@ export type Benchmark = {
   rate_metric: "TRIR" | "LTIFR" | null;
   rank: number | null;
   peer_count: number;
+  // The ranked figures behind the rank, for the position strip — same
+  // function at write and read time, so strip and rank cannot disagree.
+  comparable_rates: number[];
   verdict: string | null;
   maturity_label: MaturityLabel | null;
   maturity_rationale: string | null;
@@ -63,6 +70,7 @@ export async function getRunBenchmark(runId: string): Promise<Benchmark | null> 
     rate_metric: comparison.rate_metric,
     rank,
     peer_count: peerCount,
+    comparable_rates: comparablePeerRates(comparison),
     verdict: data.verdict,
     maturity_label: data.maturity_label,
     maturity_rationale: data.maturity_rationale,
